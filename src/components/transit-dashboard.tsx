@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
+  GeolocationStatus,
   Line,
   LineDetail,
   Stop,
@@ -35,6 +36,8 @@ export function TransitDashboard() {
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
   const [stopPanel, setStopPanel] = useState<StopArrivalsResponse | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [geolocationStatus, setGeolocationStatus] =
+    useState<GeolocationStatus>("idle");
   const [loading, setLoading] = useState(true);
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
@@ -76,33 +79,71 @@ export function TransitDashboard() {
     };
   }, []);
 
+  const requestUserLocation = useMemo(
+    () => () => {
+      if (typeof window === "undefined") {
+        return undefined;
+      }
+
+      if (!window.isSecureContext) {
+        setGeolocationStatus("insecure");
+        return undefined;
+      }
+
+      if (!navigator.geolocation) {
+        setGeolocationStatus("unsupported");
+        return undefined;
+      }
+
+      setGeolocationStatus("requesting");
+
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+          setGeolocationStatus("ready");
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            setGeolocationStatus("denied");
+          } else {
+            setGeolocationStatus("error");
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: REALTIME_POLL_MS,
+          timeout: 10000,
+        },
+      );
+
+      return watchId;
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (!navigator.geolocation) {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setGeolocationStatus("insecure");
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        });
-      },
-      () => {
-        setUserLocation(null);
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: REALTIME_POLL_MS,
-        timeout: 10000,
-      },
-    );
+    if (!navigator.geolocation) {
+      setGeolocationStatus("unsupported");
+      return;
+    }
+
+    const watchId = requestUserLocation();
 
     return () => {
-      navigator.geolocation.clearWatch(watchId);
+      if (typeof watchId === "number") {
+        navigator.geolocation.clearWatch(watchId);
+      }
     };
-  }, []);
+  }, [requestUserLocation]);
 
   useEffect(() => {
     if (!selectedLineId) {
@@ -245,14 +286,6 @@ export function TransitDashboard() {
               ))}
             </select>
           </label>
-
-          {lineDetail ? (
-            <div className="line-summary line-summary--hero">
-              <span>{lineDetail.publicCode}</span>
-              <strong>{lineDetail.displayName}</strong>
-            </div>
-          ) : null}
-
         </div>
       </header>
 
@@ -272,7 +305,13 @@ export function TransitDashboard() {
         </div>
 
         <div className="map-overlay map-overlay--bottom">
-          {selectedStop ? (
+          {geolocationStatus === "insecure" ? (
+            <div className="stop-card stop-card--hint">
+              En iPhone y otros moviles, la ubicacion del navegador necesita HTTPS.
+              Si abres la web desde una URL local tipo `http://192.168...`, Safari no
+              mostrara el permiso de ubicacion.
+            </div>
+          ) : selectedStop ? (
             <div className="stop-card">
               <div className="stop-card__header">
                 <strong>{selectedStop.name}</strong>
@@ -319,6 +358,8 @@ export function TransitDashboard() {
             vehicles={vehicles}
             highlightedLineId={selectedLineId || null}
             userLocation={userLocation}
+            geolocationStatus={geolocationStatus}
+            onRequestUserLocation={requestUserLocation}
           />
         </div>
       </section>

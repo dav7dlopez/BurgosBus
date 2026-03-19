@@ -74,3 +74,12 @@ export type UserLocation = {
   lng: number;
   accuracy?: number | null;
 };
+
+export type GeolocationStatus =
+  | "idle"
+  | "requesting"
+  | "ready"
+  | "denied"
+  | "unsupported"
+  | "insecure"
+  | "error";

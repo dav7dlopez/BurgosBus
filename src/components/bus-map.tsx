@@ -21,6 +21,7 @@ import {
 
 import { defaultMapProvider, type VectorStyleMapProvider } from "@/lib/map-config";
 import type {
+  GeolocationStatus,
   RouteShape,
   Stop,
   StopArrivalsResponse,
@@ -37,6 +38,8 @@ type BusMapProps = {
   provider?: VectorStyleMapProvider;
   highlightedLineId?: string | null;
   userLocation?: UserLocation | null;
+  geolocationStatus?: GeolocationStatus;
+  onRequestUserLocation?: () => void;
 };
 
 type StopMarkerData = Stop & {
@@ -116,6 +119,40 @@ function OpenFreeMapLayer({ provider }: { provider: VectorStyleMapProvider }) {
   }, [map, provider]);
 
   return null;
+}
+
+function RecenterControl({
+  userLocation,
+  geolocationStatus,
+  onRequestUserLocation,
+}: {
+  userLocation?: UserLocation | null;
+  geolocationStatus?: GeolocationStatus;
+  onRequestUserLocation?: () => void;
+}) {
+  const map = useMap();
+
+  return (
+    <button
+      type="button"
+      className="map-recenter-button"
+      aria-label="Centrar en mi ubicacion"
+      title="Centrar en mi ubicacion"
+      onClick={() => {
+        if (userLocation) {
+          map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 16), {
+            duration: 0.8,
+          });
+          return;
+        }
+
+        onRequestUserLocation?.();
+      }}
+      data-state={geolocationStatus ?? "idle"}
+    >
+      ◎
+    </button>
+  );
 }
 
 function FitToRoutes({ routes }: { routes: RouteShape[] }) {
@@ -248,6 +285,8 @@ export function BusMap({
   onStopSelect,
   provider = defaultMapProvider,
   userLocation,
+  geolocationStatus = "idle",
+  onRequestUserLocation,
 }: BusMapProps) {
   const stops = useMemo(() => dedupeStops(routes), [routes]);
   const routesById = useMemo(
@@ -267,6 +306,11 @@ export function BusMap({
       >
         <OpenFreeMapLayer provider={provider} />
         <FitToRoutes routes={routes} />
+        <RecenterControl
+          userLocation={userLocation}
+          geolocationStatus={geolocationStatus}
+          onRequestUserLocation={onRequestUserLocation}
+        />
 
         <Pane name="routes" style={{ zIndex: 410 }}>
           {routes.map((route) => (
