@@ -382,10 +382,36 @@ a {
 }
 
 .arrival-inline-list li {
+  display: block;
+}
+
+.arrival-inline-button {
+  width: 100%;
   display: flex;
   gap: 12px;
   justify-content: space-between;
   align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-alt);
+  color: var(--text);
+  text-align: left;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.arrival-inline-button.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.arrival-inline-button span {
+  color: var(--text);
+}
+
+.arrival-inline-button strong {
+  white-space: nowrap;
 }
 
 .fallback-panel {

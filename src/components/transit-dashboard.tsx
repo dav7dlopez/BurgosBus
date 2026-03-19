@@ -54,6 +54,7 @@ export function TransitDashboard() {
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
   const geolocationWatchId = useRef<number | null>(null);
+  const preserveSelectedStopRef = useRef<Stop | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -281,6 +282,7 @@ export function TransitDashboard() {
 
     async function loadLineSnapshot() {
       setLineError(null);
+      const stopToPreserve = preserveSelectedStopRef.current;
       try {
         const [lineResponse, vehiclesResponse] = await Promise.all([
           fetch(`/api/lines/${selectedLineId}`),
@@ -302,13 +304,28 @@ export function TransitDashboard() {
 
         setLineDetail(lineData);
         setVehicles(vehiclesData.vehicles);
-        setSelectedStop(null);
-        setStopPanel(null);
+        if (stopToPreserve) {
+          const stopStillBelongsToLine = lineData.routes.some((route) =>
+            route.stops.some((stop) => stop.id === stopToPreserve.id),
+          );
+
+          if (stopStillBelongsToLine) {
+            setSelectedStop(stopToPreserve);
+          } else {
+            setSelectedStop(null);
+            setStopPanel(null);
+          }
+        } else {
+          setSelectedStop(null);
+          setStopPanel(null);
+        }
       } catch (error) {
         if (!active) {
           return;
         }
         setLineError(error instanceof Error ? error.message : "Error desconocido.");
+      } finally {
+        preserveSelectedStopRef.current = null;
       }
     }
 
@@ -396,6 +413,15 @@ export function TransitDashboard() {
     () => new Set(nearbyStops.map((item) => item.stop.id)),
     [nearbyStops],
   );
+
+  function activateLineFromStop(lineId: string) {
+    if (!selectedStop || lineId === selectedLineId) {
+      return;
+    }
+
+    preserveSelectedStopRef.current = selectedStop;
+    setSelectedLineId(lineId);
+  }
 
   return (
     <main className="app-shell">
@@ -560,10 +586,18 @@ export function TransitDashboard() {
                       <li
                         key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId ?? "na"}-${arrival.etaSeconds}-${index}`}
                       >
-                        <span>
-                          L{arrival.lineId} {arrival.destination}
-                        </span>
-                        <strong>{formatEta(arrival.etaSeconds)}</strong>
+                        <button
+                          type="button"
+                          className={`arrival-inline-button${
+                            arrival.lineId === selectedLineId ? " is-active" : ""
+                          }`}
+                          onClick={() => activateLineFromStop(arrival.lineId)}
+                        >
+                          <span>
+                            L{arrival.lineId} {arrival.destination}
+                          </span>
+                          <strong>{formatEta(arrival.etaSeconds)}</strong>
+                        </button>
                       </li>
                     ))}
                   </ul>
