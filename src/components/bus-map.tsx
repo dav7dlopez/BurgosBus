@@ -67,13 +67,16 @@ function createStopIcon(colors: string[], isSelected: boolean): DivIcon {
 function createBusIcon(color: string, rotationDeg: number): DivIcon {
   return divIcon({
     className: "",
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
-    popupAnchor: [0, -18],
+    iconSize: [54, 54],
+    iconAnchor: [27, 27],
+    popupAnchor: [0, -24],
     html: `
       <span class="bus-vehicle-icon" style="--route-color:${color}; --heading:${rotationDeg}deg;">
+        <span class="bus-vehicle-icon__direction">
+          <span class="bus-vehicle-icon__shaft"></span>
+          <span class="bus-vehicle-icon__arrow"></span>
+        </span>
         <span class="bus-vehicle-icon__body">🚌</span>
-        <span class="bus-vehicle-icon__arrow"></span>
       </span>
     `,
   });

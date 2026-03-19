@@ -32,6 +32,7 @@ const BusMap = dynamic(
 
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [locationEnabled, setLocationEnabled] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDetail, setLineDetail] = useState<LineDetail | null>(null);
@@ -184,6 +185,16 @@ export function TransitDashboard() {
   );
 
   useEffect(() => {
+    if (!locationEnabled) {
+      if (geolocationWatchId.current != null) {
+        navigator.geolocation.clearWatch(geolocationWatchId.current);
+        geolocationWatchId.current = null;
+      }
+      setUserLocation(null);
+      setGeolocationStatus("idle");
+      return;
+    }
+
     if (typeof window !== "undefined" && !window.isSecureContext) {
       setGeolocationStatus("insecure");
       return;
@@ -205,7 +216,7 @@ export function TransitDashboard() {
         geolocationWatchId.current = null;
       }
     };
-  }, [requestUserLocation]);
+  }, [locationEnabled, requestUserLocation]);
 
   useEffect(() => {
     if (!selectedLineId) {
@@ -355,6 +366,17 @@ export function TransitDashboard() {
             >
               ☾
             </button>
+            <button
+              type="button"
+              className={`theme-toggle__button theme-toggle__button--gps${locationEnabled ? " is-active" : ""}`}
+              aria-label={
+                locationEnabled ? "Desactivar ubicacion" : "Activar ubicacion"
+              }
+              title={locationEnabled ? "Ubicacion activada" : "Activar ubicacion"}
+              onClick={() => setLocationEnabled((current) => !current)}
+            >
+              ⌖
+            </button>
           </div>
 
           <label className="field field--compact">
@@ -392,15 +414,13 @@ export function TransitDashboard() {
         <div className="map-overlay map-overlay--bottom">
           {geolocationStatus === "insecure" ? (
             <div className="stop-card stop-card--hint">
-              En iPhone y otros moviles, la ubicacion del navegador necesita HTTPS.
-              Si abres la web desde una URL local tipo `http://192.168...`, Safari no
-              mostrara el permiso de ubicacion.
+              La ubicacion del navegador necesita HTTPS y permisos del sitio para
+              poder mostrarse.
             </div>
           ) : geolocationStatus === "denied" ? (
             <div className="stop-card stop-card--hint">
-              Safari no ha concedido acceso a la ubicacion. Puedes tocar el boton
-              de centrar del mapa para volver a intentarlo o revisar los permisos
-              del sitio en el navegador del iPhone.
+              El navegador no ha concedido acceso a la ubicacion. Puedes reactivarla
+              con el boton GPS de arriba o revisar los permisos del sitio.
             </div>
           ) : selectedStop ? (
             <div className="stop-card">
@@ -464,7 +484,10 @@ export function TransitDashboard() {
             highlightedLineId={selectedLineId || null}
             userLocation={userLocation}
             geolocationStatus={geolocationStatus}
-            onRequestUserLocation={requestUserLocation}
+            onRequestUserLocation={() => {
+              setLocationEnabled(true);
+              requestUserLocation();
+            }}
             provider={activeMapProvider}
           />
         </div>
