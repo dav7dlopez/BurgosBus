@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bus Burgos Web
 
-## Getting Started
+Aplicacion web para visualizar lineas, recorridos, paradas, vehiculos y tiempos de llegada del autobus urbano de Burgos mediante una API interna desacoplada.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 + React 19
+- API interna en rutas `app/api`
+- Leaflet para la interaccion del mapa
+- OpenFreeMap como proveedor base del mapa
+- Adaptador server-side hacia los recursos oficiales detectados en `movilidad.aytoburgos.es`
+
+## Desarrollo
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API interna disponible
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `GET /api/lines`
+- `GET /api/lines/:id`
+- `GET /api/lines/:id/stops`
+- `GET /api/lines/:id/shape`
+- `GET /api/lines/:id/vehicles`
+- `GET /api/stops/:id/arrivals`
 
-## Learn More
+## Fuente de datos
 
-To learn more about Next.js, take a look at the following resources:
+La aplicacion no expone al frontend los endpoints municipales. Toda llamada externa se hace server-side contra los recursos JSON detectados en el portlet oficial `IsaenextWebPortlet`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Mapa base
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+La vista de mapa usa Leaflet con una configuracion centralizada de proveedor en `src/lib/map-config.ts`. La opcion activa es OpenFreeMap y no requiere API key, registro ni facturacion.
