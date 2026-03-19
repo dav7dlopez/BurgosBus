@@ -46,6 +46,8 @@ export function TransitDashboard() {
   const [stopPanel, setStopPanel] = useState<StopArrivalsResponse | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
+  const [nearbyStopsLoading, setNearbyStopsLoading] = useState(false);
+  const [nearbyStopsResolved, setNearbyStopsResolved] = useState(false);
   const [focusUserLocationSignal, setFocusUserLocationSignal] = useState(0);
   const [focusNearbyStopsSignal, setFocusNearbyStopsSignal] = useState(0);
   const [geolocationStatus, setGeolocationStatus] =
@@ -230,6 +232,8 @@ export function TransitDashboard() {
   useEffect(() => {
     if (!nearbyModeEnabled || !userLocation) {
       setNearbyStops([]);
+      setNearbyStopsLoading(false);
+      setNearbyStopsResolved(false);
       return;
     }
 
@@ -237,6 +241,10 @@ export function TransitDashboard() {
     const currentLocation = userLocation;
 
     async function loadNearbyStops() {
+      if (active) {
+        setNearbyStopsLoading(true);
+      }
+
       try {
         const params = new URLSearchParams({
           lat: String(currentLocation.lat),
@@ -251,12 +259,18 @@ export function TransitDashboard() {
         const data = (await response.json()) as NearbyStopsResponse;
         if (active) {
           setNearbyStops(data.stops);
+          setNearbyStopsResolved(true);
         }
       } catch (error) {
         if (active) {
           setLineError(
             error instanceof Error ? error.message : "Error cargando paradas cercanas.",
           );
+          setNearbyStopsResolved(true);
+        }
+      } finally {
+        if (active) {
+          setNearbyStopsLoading(false);
         }
       }
     }
@@ -552,7 +566,11 @@ export function TransitDashboard() {
               {nearbyStops.length} paradas cercanas encontradas en un radio de 1 km.
               Pulsa cualquiera en el mapa para ver sus lineas y tiempos.
             </div>
-          ) : nearbyModeEnabled && userLocation && !selectedStop ? (
+          ) : nearbyModeEnabled && nearbyStopsLoading && !selectedStop ? (
+            <div className="stop-card stop-card--hint">
+              Buscando paradas cercanas alrededor de tu ubicacion...
+            </div>
+          ) : nearbyModeEnabled && nearbyStopsResolved && userLocation && !selectedStop ? (
             <div className="stop-card stop-card--hint">
               No se han encontrado paradas en un radio de 1 km alrededor de tu
               ubicacion actual.
