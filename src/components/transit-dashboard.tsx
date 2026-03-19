@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { mapProviders } from "@/lib/map-config";
 import type {
   GeolocationStatus,
   Line,
@@ -14,6 +15,7 @@ import type {
 } from "@/lib/types";
 
 const REALTIME_POLL_MS = 10000;
+const THEME_STORAGE_KEY = "bus-burgos-theme";
 
 const BusMap = dynamic(
   () => import("@/components/bus-map").then((module) => module.BusMap),
@@ -29,6 +31,7 @@ const BusMap = dynamic(
 );
 
 export function TransitDashboard() {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [lines, setLines] = useState<Line[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDetail, setLineDetail] = useState<LineDetail | null>(null);
@@ -42,6 +45,30 @@ export function TransitDashboard() {
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
   const geolocationWatchId = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+      document.documentElement.dataset.theme = savedTheme;
+      return;
+    }
+
+    document.documentElement.dataset.theme = "light";
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     let isMounted = true;
@@ -288,6 +315,8 @@ export function TransitDashboard() {
   }, [selectedStop]);
 
   const routes = useMemo(() => lineDetail?.routes ?? [], [lineDetail]);
+  const activeMapProvider =
+    theme === "dark" ? mapProviders.openFreeMapDark : mapProviders.openFreeMap;
   const routeSummaries = useMemo(
     () =>
       routes.map((route) => ({
@@ -307,6 +336,27 @@ export function TransitDashboard() {
         </div>
 
         <div className="topbar-controls">
+          <div className="theme-toggle" aria-label="Selector de tema">
+            <button
+              type="button"
+              className={`theme-toggle__button${theme === "light" ? " is-active" : ""}`}
+              aria-label="Activar modo claro"
+              title="Modo claro"
+              onClick={() => setTheme("light")}
+            >
+              ☀
+            </button>
+            <button
+              type="button"
+              className={`theme-toggle__button${theme === "dark" ? " is-active" : ""}`}
+              aria-label="Activar modo oscuro"
+              title="Modo oscuro"
+              onClick={() => setTheme("dark")}
+            >
+              ☾
+            </button>
+          </div>
+
           <label className="field field--compact">
             <span>Linea activa</span>
             <select
@@ -415,6 +465,7 @@ export function TransitDashboard() {
             userLocation={userLocation}
             geolocationStatus={geolocationStatus}
             onRequestUserLocation={requestUserLocation}
+            provider={activeMapProvider}
           />
         </div>
       </section>

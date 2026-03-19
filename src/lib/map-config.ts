@@ -44,6 +44,20 @@ export const mapProviders = {
     minZoom: 11,
     maxZoom: 19,
   } satisfies VectorStyleMapProvider,
+  openFreeMapDark: {
+    id: "openfreemap-dark",
+    name: "OpenFreeMap Dark",
+    kind: "vector-style",
+    styleUrl: "https://tiles.openfreemap.org/styles/dark",
+    attribution: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
+    center: {
+      lat: 42.343992,
+      lng: -3.696906,
+    },
+    zoom: 13,
+    minZoom: 11,
+    maxZoom: 19,
+  } satisfies VectorStyleMapProvider,
 };
 
 export const defaultMapProvider = mapProviders.openFreeMap;
