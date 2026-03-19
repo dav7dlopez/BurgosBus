@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import L, {
   divIcon,
   latLngBounds,
@@ -198,12 +198,14 @@ function FocusUserLocation({
   signal?: number;
 }) {
   const map = useMap();
+  const lastHandledSignalRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (!signal || !userLocation) {
+    if (!signal || !userLocation || lastHandledSignalRef.current === signal) {
       return;
     }
 
+    lastHandledSignalRef.current = signal;
     map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 16), {
       duration: 0.8,
     });
@@ -222,12 +224,14 @@ function FocusNearbyStops({
   signal?: number;
 }) {
   const map = useMap();
+  const lastHandledSignalRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (!signal || !userLocation) {
+    if (!signal || !userLocation || lastHandledSignalRef.current === signal) {
       return;
     }
 
+    lastHandledSignalRef.current = signal;
     if (nearbyStops.length === 0) {
       map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 16), {
         duration: 0.8,

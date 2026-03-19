@@ -426,12 +426,12 @@ export function TransitDashboard() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand-lockup">
-          <p className="eyebrow">Tiempo real</p>
-          <h1>Autobuses Burgos</h1>
-        </div>
+        <div className="topbar-head">
+          <div className="brand-lockup">
+            <p className="eyebrow">Tiempo real</p>
+            <h1>Autobuses Burgos</h1>
+          </div>
 
-        <div className="topbar-controls">
           <div className="theme-toggle" aria-label="Selector de tema">
             <button
               type="button"
@@ -487,7 +487,9 @@ export function TransitDashboard() {
               ◎
             </button>
           </div>
+        </div>
 
+        <div className="topbar-controls">
           <label className="field field--compact">
             <span>Linea activa</span>
             <select

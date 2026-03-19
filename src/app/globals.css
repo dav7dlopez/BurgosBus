@@ -79,16 +79,21 @@ a {
 }
 
 .topbar {
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  align-items: flex-start;
+  display: grid;
+  gap: 8px;
   padding: 8px 14px 6px;
   background: var(--surface-strong);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-strong);
   position: relative;
   z-index: 1200;
+}
+
+.topbar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .brand-lockup {
@@ -121,12 +126,7 @@ a {
 }
 
 .topbar-controls {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex: 1;
+  display: block;
 }
 
 .theme-toggle {
@@ -583,13 +583,7 @@ html[data-theme="dark"] .fallback-panel {
 
 @media (max-width: 1080px) {
   .topbar {
-    flex-direction: column;
-    align-items: stretch;
     gap: 8px;
-  }
-
-  .topbar-controls {
-    justify-content: flex-start;
   }
 
   .field--compact {
@@ -604,36 +598,32 @@ html[data-theme="dark"] .fallback-panel {
   }
 
   .brand-lockup {
-    width: 100%;
+    min-width: 0;
   }
 
   .brand-lockup h1 {
-    font-size: 1.06rem;
-    white-space: normal;
+    font-size: 1.08rem;
+    white-space: nowrap;
   }
 
   .eyebrow {
     font-size: 0.54rem;
   }
 
-  .topbar-controls {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 6px;
-    width: 100%;
+  .topbar-head {
+    align-items: center;
+    gap: 8px;
   }
 
   .theme-toggle {
-    padding: 2px;
-    max-width: 100%;
+    flex-shrink: 0;
+    padding: 3px;
   }
 
   .theme-toggle__button {
-    width: 31px;
-    height: 31px;
-    font-size: 0.92rem;
+    width: 40px;
+    height: 40px;
+    font-size: 1.04rem;
   }
 
   .field {
@@ -654,7 +644,6 @@ html[data-theme="dark"] .fallback-panel {
   .field--compact {
     min-width: 100%;
     margin-left: 0;
-    justify-self: stretch;
   }
 
   .map-overlay--top {
