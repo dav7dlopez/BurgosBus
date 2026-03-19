@@ -8,6 +8,8 @@ import type {
   GeolocationStatus,
   Line,
   LineDetail,
+  NearbyStop,
+  NearbyStopsResponse,
   Stop,
   StopArrivalsResponse,
   UserLocation,
@@ -16,6 +18,7 @@ import type {
 
 const REALTIME_POLL_MS = 10000;
 const THEME_STORAGE_KEY = "bus-burgos-theme";
+const NEARBY_STOP_RADIUS_METERS = 1000;
 
 const BusMap = dynamic(
   () => import("@/components/bus-map").then((module) => module.BusMap),
@@ -33,6 +36,8 @@ const BusMap = dynamic(
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
+  const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDetail, setLineDetail] = useState<LineDetail | null>(null);
@@ -40,6 +45,9 @@ export function TransitDashboard() {
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
   const [stopPanel, setStopPanel] = useState<StopArrivalsResponse | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
+  const [focusUserLocationSignal, setFocusUserLocationSignal] = useState(0);
+  const [focusNearbyStopsSignal, setFocusNearbyStopsSignal] = useState(0);
   const [geolocationStatus, setGeolocationStatus] =
     useState<GeolocationStatus>("idle");
   const [loading, setLoading] = useState(true);
@@ -219,6 +227,52 @@ export function TransitDashboard() {
   }, [locationEnabled, requestUserLocation]);
 
   useEffect(() => {
+    if (!nearbyModeEnabled || !userLocation) {
+      setNearbyStops([]);
+      return;
+    }
+
+    let active = true;
+    const currentLocation = userLocation;
+
+    async function loadNearbyStops() {
+      try {
+        const params = new URLSearchParams({
+          lat: String(currentLocation.lat),
+          lng: String(currentLocation.lng),
+          radius: String(NEARBY_STOP_RADIUS_METERS),
+        });
+        const response = await fetch(`/api/stops/nearby?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar las paradas cercanas.");
+        }
+
+        const data = (await response.json()) as NearbyStopsResponse;
+        if (active) {
+          setNearbyStops(data.stops);
+        }
+      } catch (error) {
+        if (active) {
+          setLineError(
+            error instanceof Error ? error.message : "Error cargando paradas cercanas.",
+          );
+        }
+      }
+    }
+
+    void loadNearbyStops();
+
+    const intervalId = window.setInterval(() => {
+      void loadNearbyStops();
+    }, REALTIME_POLL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [nearbyModeEnabled, userLocation]);
+
+  useEffect(() => {
     if (!selectedLineId) {
       return;
     }
@@ -337,6 +391,11 @@ export function TransitDashboard() {
       })),
     [routes],
   );
+  const selectedStopLineCodes = stopPanel?.lines.map((line) => line.publicCode).join(", ");
+  const nearbyStopIds = useMemo(
+    () => new Set(nearbyStops.map((item) => item.stop.id)),
+    [nearbyStops],
+  );
 
   return (
     <main className="app-shell">
@@ -368,14 +427,38 @@ export function TransitDashboard() {
             </button>
             <button
               type="button"
-              className={`theme-toggle__button theme-toggle__button--gps${locationEnabled ? " is-active" : ""}`}
+              className={`theme-toggle__button theme-toggle__button--gps${locationEnabled ? " is-active" : " is-off"}`}
               aria-label={
                 locationEnabled ? "Desactivar ubicacion" : "Activar ubicacion"
               }
               title={locationEnabled ? "Ubicacion activada" : "Activar ubicacion"}
-              onClick={() => setLocationEnabled((current) => !current)}
+              onClick={() => {
+                setLocationEnabled((current) => !current);
+                setFocusUserLocationSignal((current) => current + 1);
+              }}
             >
               ⌖
+            </button>
+            <button
+              type="button"
+              className={`theme-toggle__button theme-toggle__button--nearby${nearbyModeEnabled ? " is-active" : ""}`}
+              aria-label={
+                nearbyModeEnabled
+                  ? "Ocultar paradas cercanas"
+                  : "Mostrar paradas cercanas"
+              }
+              title={
+                nearbyModeEnabled
+                  ? "Ocultar paradas cercanas"
+                  : "Mostrar paradas cercanas"
+              }
+              onClick={() => {
+                setLocationEnabled(true);
+                setNearbyModeEnabled((current) => !current);
+                setFocusNearbyStopsSignal((current) => current + 1);
+              }}
+            >
+              ◎
             </button>
           </div>
 
@@ -400,15 +483,29 @@ export function TransitDashboard() {
 
       <section className="map-stage">
         <div className="map-overlay map-overlay--top">
-          {routeSummaries.map((route) => (
-            <span key={route.id} className="route-pill">
-              <span
-                className="route-pill__swatch"
-                style={{ backgroundColor: route.color }}
-              />
-              {route.label}
-            </span>
-          ))}
+          <button
+            type="button"
+            className={`legend-toggle${isMobileLegendOpen ? " is-open" : ""}`}
+            onClick={() => setIsMobileLegendOpen((current) => !current)}
+            aria-expanded={isMobileLegendOpen}
+            aria-controls="route-legend"
+          >
+            Recorridos
+          </button>
+          <div
+            id="route-legend"
+            className={`route-legend${isMobileLegendOpen ? " is-open" : ""}`}
+          >
+            {routeSummaries.map((route) => (
+              <span key={route.id} className="route-pill">
+                <span
+                  className="route-pill__swatch"
+                  style={{ backgroundColor: route.color }}
+                />
+                {route.label}
+              </span>
+            ))}
+          </div>
         </div>
 
         <div className="map-overlay map-overlay--bottom">
@@ -421,6 +518,16 @@ export function TransitDashboard() {
             <div className="stop-card stop-card--hint">
               El navegador no ha concedido acceso a la ubicacion. Puedes reactivarla
               con el boton GPS de arriba o revisar los permisos del sitio.
+            </div>
+          ) : nearbyModeEnabled && nearbyStops.length > 0 && !selectedStop ? (
+            <div className="stop-card stop-card--hint">
+              {nearbyStops.length} paradas cercanas encontradas en un radio de 1 km.
+              Pulsa cualquiera en el mapa para ver sus lineas y tiempos.
+            </div>
+          ) : nearbyModeEnabled && userLocation && !selectedStop ? (
+            <div className="stop-card stop-card--hint">
+              No se han encontrado paradas en un radio de 1 km alrededor de tu
+              ubicacion actual.
             </div>
           ) : selectedStop ? (
             <div className="stop-card">
@@ -446,14 +553,12 @@ export function TransitDashboard() {
               {stopPanel ? (
                 <>
                   <p className="meta">
-                    Lineas:{" "}
-                    {stopPanel.lines.map((line) => line.publicCode).join(", ") ||
-                      "sin dato"}
+                    Lineas: {selectedStopLineCodes || "sin dato"}
                   </p>
                   <ul className="arrival-inline-list">
-                    {stopPanel.arrivals.slice(0, 4).map((arrival) => (
+                    {stopPanel.arrivals.slice(0, 4).map((arrival, index) => (
                       <li
-                        key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId}-${arrival.etaSeconds}`}
+                        key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId ?? "na"}-${arrival.etaSeconds}-${index}`}
                       >
                         <span>
                           L{arrival.lineId} {arrival.destination}
@@ -484,8 +589,13 @@ export function TransitDashboard() {
             highlightedLineId={selectedLineId || null}
             userLocation={userLocation}
             geolocationStatus={geolocationStatus}
+            nearbyStops={nearbyStops.map((item) => item.stop)}
+            nearbyStopIds={nearbyStopIds}
+            focusUserLocationSignal={focusUserLocationSignal}
+            focusNearbyStopsSignal={focusNearbyStopsSignal}
             onRequestUserLocation={() => {
               setLocationEnabled(true);
+              setFocusUserLocationSignal((current) => current + 1);
               requestUserLocation();
             }}
             provider={activeMapProvider}

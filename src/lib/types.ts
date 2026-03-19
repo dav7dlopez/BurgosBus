@@ -69,6 +69,22 @@ export type StopArrivalsResponse = {
   observedAt: string;
 };
 
+export type NearbyStop = {
+  stop: Stop;
+  lines: Line[];
+  distanceMeters: number;
+};
+
+export type NearbyStopsResponse = {
+  origin: {
+    lat: number;
+    lng: number;
+    radiusMeters: number;
+  };
+  stops: NearbyStop[];
+  observedAt: string;
+};
+
 export type UserLocation = {
   lat: number;
   lng: number;

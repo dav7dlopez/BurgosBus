@@ -3,6 +3,7 @@ import {
   type ArrivalPrediction,
   type Line,
   type LineDetail,
+  type NearbyStopsResponse,
   type RouteShape,
   type Stop,
   type StopArrivalsResponse,
@@ -130,6 +131,27 @@ function normalizeStop(stop: RawStop): Stop {
 function colorForRoute(index: number) {
   const palette = ["#d1495b", "#00798c", "#edae49", "#30638e"];
   return palette[index % palette.length];
+}
+
+function haversineDistanceMeters(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+) {
+  const earthRadiusMeters = 6371000;
+  const lat1 = (from.lat * Math.PI) / 180;
+  const lat2 = (to.lat * Math.PI) / 180;
+  const dLat = ((to.lat - from.lat) * Math.PI) / 180;
+  const dLng = ((to.lng - from.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusMeters * c;
 }
 
 function normalizeRoute(lineId: string, route: RawRoute, index: number): RouteShape {
@@ -360,6 +382,36 @@ export async function getStopArrivals(stopId: string): Promise<StopArrivalsRespo
     stop,
     lines: stopLineIndex.get(stopId) ?? [],
     arrivals,
+    observedAt,
+  };
+}
+
+export async function getNearbyStops(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+): Promise<NearbyStopsResponse> {
+  const [stops, stopLineIndex] = await Promise.all([getAllStops(), getStopLinesIndex()]);
+  const origin = { lat, lng };
+  const observedAt = new Date().toISOString();
+
+  const nearbyStops = stops
+    .map((stop) => ({
+      stop,
+      lines: stopLineIndex.get(stop.id) ?? [],
+      distanceMeters: Math.round(haversineDistanceMeters(origin, stop)),
+    }))
+    .filter((item) => item.distanceMeters <= radiusMeters)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, 25);
+
+  return {
+    origin: {
+      lat,
+      lng,
+      radiusMeters,
+    },
+    stops: nearbyStops,
     observedAt,
   };
 }

@@ -80,10 +80,10 @@ a {
 
 .topbar {
   display: flex;
-  gap: 24px;
+  gap: 16px;
   justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
+  align-items: flex-start;
+  padding: 8px 14px 6px;
   background: var(--surface-strong);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-strong);
@@ -91,17 +91,23 @@ a {
   z-index: 1200;
 }
 
+.brand-lockup {
+  display: grid;
+  gap: 2px;
+}
+
 .brand-lockup h1 {
-  margin: 2px 0 0;
-  font-size: clamp(1.6rem, 2.4vw, 2.25rem);
-  line-height: 1;
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.95rem);
+  line-height: 0.95;
+  white-space: nowrap;
 }
 
 .eyebrow {
   margin: 0;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  font-size: 0.66rem;
   color: var(--accent-strong);
   font-weight: 700;
 }
@@ -116,15 +122,18 @@ a {
 
 .topbar-controls {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
 }
 
 .theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px;
+  padding: 3px;
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -132,13 +141,13 @@ a {
 }
 
 .theme-toggle__button {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   cursor: pointer;
 }
 
@@ -149,6 +158,23 @@ a {
 
 .theme-toggle__button--gps {
   font-size: 1.15rem;
+  position: relative;
+}
+
+.theme-toggle__button--gps.is-off::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  width: 2px;
+  height: 18px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-45deg);
+}
+
+.theme-toggle__button--nearby {
+  font-size: 1.1rem;
 }
 
 .meta,
@@ -160,18 +186,19 @@ a {
 
 .field {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   min-width: min(380px, 100%);
 }
 
 .field span {
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   color: var(--muted);
   font-weight: 700;
 }
 
 .field--compact {
   min-width: 290px;
+  margin-left: auto;
 }
 
 .field select {
@@ -179,8 +206,8 @@ a {
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 14px 16px;
-  font-size: 1rem;
+  padding: 10px 14px;
+  font-size: 0.98rem;
   color: var(--text);
 }
 
@@ -232,7 +259,8 @@ a {
   left: 16px;
   right: 74px;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
 }
 
@@ -259,6 +287,24 @@ a {
   width: 10px;
   height: 10px;
   border-radius: 999px;
+}
+
+.legend-toggle {
+  display: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .map-recenter-button {
@@ -370,6 +416,14 @@ a {
 .bus-stop-icon.is-selected {
   border-color: #111827;
   box-shadow: 0 12px 26px rgba(17, 33, 45, 0.32);
+}
+
+.bus-stop-icon.is-nearby {
+  width: 30px;
+  height: 30px;
+  box-shadow:
+    0 0 0 5px rgba(52, 211, 153, 0.16),
+    0 10px 22px rgba(17, 33, 45, 0.22);
 }
 
 .bus-stop-icon__pole {
@@ -505,10 +559,11 @@ html[data-theme="dark"] .fallback-panel {
   .topbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
   }
 
   .topbar-controls {
-    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .field--compact {
@@ -518,13 +573,70 @@ html[data-theme="dark"] .fallback-panel {
 
 @media (max-width: 720px) {
   .topbar {
-    padding: 14px;
+    gap: 6px;
+    padding: 6px 10px 5px;
+  }
+
+  .brand-lockup {
+    width: 100%;
+  }
+
+  .brand-lockup h1 {
+    font-size: 1.06rem;
+    white-space: normal;
+  }
+
+  .eyebrow {
+    font-size: 0.54rem;
+  }
+
+  .topbar-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .theme-toggle {
+    padding: 2px;
+    max-width: 100%;
+  }
+
+  .theme-toggle__button {
+    width: 31px;
+    height: 31px;
+    font-size: 0.92rem;
+  }
+
+  .field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .field span {
+    font-size: 0.76rem;
+  }
+
+  .field select {
+    padding: 8px 11px;
+    font-size: 0.88rem;
+    border-radius: 12px;
+  }
+
+  .field--compact {
+    min-width: 100%;
+    margin-left: 0;
+    justify-self: stretch;
   }
 
   .map-overlay--top {
     top: 12px;
-    left: 12px;
-    right: 64px;
+    left: auto;
+    right: 12px;
+    gap: 8px;
+    align-items: flex-end;
   }
 
   .map-overlay--bottom {
@@ -541,5 +653,30 @@ html[data-theme="dark"] .fallback-panel {
   .route-pill {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .legend-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+  }
+
+  .route-legend {
+    display: none;
+    width: min(280px, calc(100vw - 88px));
+    flex-direction: column;
+    align-items: stretch;
+    align-self: flex-end;
+  }
+
+  .route-legend.is-open {
+    display: flex;
+  }
+
+  .map-recenter-button {
+    top: 106px;
+    left: 12px;
+    right: auto;
   }
 }

@@ -38,6 +38,10 @@ type BusMapProps = {
   highlightedLineId?: string | null;
   userLocation?: UserLocation | null;
   geolocationStatus?: GeolocationStatus;
+  nearbyStops?: Stop[];
+  nearbyStopIds?: Set<string>;
+  focusUserLocationSignal?: number;
+  focusNearbyStopsSignal?: number;
   onRequestUserLocation?: () => void;
 };
 
@@ -45,7 +49,11 @@ type StopMarkerData = Stop & {
   colors: string[];
 };
 
-function createStopIcon(colors: string[], isSelected: boolean): DivIcon {
+function createStopIcon(
+  colors: string[],
+  isSelected: boolean,
+  isNearby: boolean,
+): DivIcon {
   const gradient =
     colors.length > 1
       ? `conic-gradient(${colors.join(",")})`
@@ -53,11 +61,13 @@ function createStopIcon(colors: string[], isSelected: boolean): DivIcon {
 
   return divIcon({
     className: "",
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
     popupAnchor: [0, -16],
     html: `
-      <span class="bus-stop-icon${isSelected ? " is-selected" : ""}" style="--stop-fill:${gradient}">
+      <span class="bus-stop-icon${isSelected ? " is-selected" : ""}${
+        isNearby ? " is-nearby" : ""
+      }" style="--stop-fill:${gradient}">
         <span class="bus-stop-icon__pole"></span>
       </span>
     `,
@@ -180,6 +190,62 @@ function FitToRoutes({ routes }: { routes: RouteShape[] }) {
   return null;
 }
 
+function FocusUserLocation({
+  userLocation,
+  signal,
+}: {
+  userLocation?: UserLocation | null;
+  signal?: number;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!signal || !userLocation) {
+      return;
+    }
+
+    map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 16), {
+      duration: 0.8,
+    });
+  }, [map, signal, userLocation]);
+
+  return null;
+}
+
+function FocusNearbyStops({
+  userLocation,
+  nearbyStops,
+  signal,
+}: {
+  userLocation?: UserLocation | null;
+  nearbyStops: Stop[];
+  signal?: number;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!signal || !userLocation) {
+      return;
+    }
+
+    if (nearbyStops.length === 0) {
+      map.flyTo([userLocation.lat, userLocation.lng], Math.max(map.getZoom(), 16), {
+        duration: 0.8,
+      });
+      return;
+    }
+
+    const bounds = latLngBounds([
+      [userLocation.lat, userLocation.lng] as LatLngExpression,
+      ...nearbyStops.map((stop) => [stop.lat, stop.lng] as LatLngExpression),
+    ]);
+
+    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 17 });
+  }, [map, nearbyStops, signal, userLocation]);
+
+  return null;
+}
+
 function dedupeStops(routes: RouteShape[]) {
   const seen = new Map<string, StopMarkerData>();
 
@@ -202,6 +268,24 @@ function dedupeStops(routes: RouteShape[]) {
   });
 
   return [...seen.values()];
+}
+
+function mergeNearbyStops(baseStops: StopMarkerData[], nearbyStops: Stop[]) {
+  const merged = new Map(baseStops.map((stop) => [stop.id, stop]));
+
+  nearbyStops.forEach((stop) => {
+    const existing = merged.get(stop.id);
+    if (existing) {
+      return;
+    }
+
+    merged.set(stop.id, {
+      ...stop,
+      colors: ["#34d399"],
+    });
+  });
+
+  return [...merged.values()];
 }
 
 function getHeadingDegrees(vehicle: VehiclePosition, route: RouteShape | undefined) {
@@ -241,9 +325,16 @@ export function BusMap({
   provider = defaultMapProvider,
   userLocation,
   geolocationStatus = "idle",
+  nearbyStops = [],
+  nearbyStopIds = new Set<string>(),
+  focusUserLocationSignal,
+  focusNearbyStopsSignal,
   onRequestUserLocation,
 }: BusMapProps) {
-  const stops = useMemo(() => dedupeStops(routes), [routes]);
+  const stops = useMemo(
+    () => mergeNearbyStops(dedupeStops(routes), nearbyStops),
+    [nearbyStops, routes],
+  );
   const routesById = useMemo(
     () => new Map(routes.map((route) => [route.routeId, route])),
     [routes],
@@ -261,6 +352,15 @@ export function BusMap({
       >
         <OpenFreeMapLayer provider={provider} />
         <FitToRoutes routes={routes} />
+        <FocusUserLocation
+          userLocation={userLocation}
+          signal={focusUserLocationSignal}
+        />
+        <FocusNearbyStops
+          userLocation={userLocation}
+          nearbyStops={nearbyStops}
+          signal={focusNearbyStopsSignal}
+        />
         <RecenterControl
           userLocation={userLocation}
           geolocationStatus={geolocationStatus}
@@ -286,7 +386,11 @@ export function BusMap({
             <Marker
               key={stop.id}
               position={[stop.lat, stop.lng]}
-              icon={createStopIcon(stop.colors, stop.id === selectedStopId)}
+              icon={createStopIcon(
+                stop.colors,
+                stop.id === selectedStopId,
+                nearbyStopIds.has(stop.id),
+              )}
               eventHandlers={{
                 click: () => onStopSelect(stop),
               }}
