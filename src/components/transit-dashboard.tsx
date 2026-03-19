@@ -454,7 +454,7 @@ export function TransitDashboard() {
               title="Modo claro"
               onClick={() => setTheme("light")}
             >
-              ☀
+              ☀️
             </button>
             <button
               type="button"
@@ -463,7 +463,7 @@ export function TransitDashboard() {
               title="Modo oscuro"
               onClick={() => setTheme("dark")}
             >
-              ☾
+              🌙
             </button>
             <button
               type="button"
@@ -477,7 +477,7 @@ export function TransitDashboard() {
                 setFocusUserLocationSignal((current) => current + 1);
               }}
             >
-              ⌖
+              📍
             </button>
             <button
               type="button"
@@ -498,7 +498,7 @@ export function TransitDashboard() {
                 setFocusNearbyStopsSignal((current) => current + 1);
               }}
             >
-              ◎
+              🚏
             </button>
           </div>
         </div>

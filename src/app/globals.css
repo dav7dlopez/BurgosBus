@@ -149,6 +149,7 @@ a {
   color: var(--muted);
   font-size: 0.98rem;
   cursor: pointer;
+  line-height: 1;
 }
 
 .theme-toggle__button.is-active {
@@ -157,24 +158,25 @@ a {
 }
 
 .theme-toggle__button--gps {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   position: relative;
 }
 
 .theme-toggle__button--gps.is-off::after {
   content: "";
   position: absolute;
-  top: 8px;
-  left: 16px;
-  width: 2px;
-  height: 18px;
+  top: 7px;
+  left: 18px;
+  width: 2.5px;
+  height: 20px;
   border-radius: 999px;
-  background: currentColor;
+  background: rgba(180, 35, 24, 0.92);
   transform: rotate(-45deg);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
 .theme-toggle__button--nearby {
-  font-size: 1.1rem;
+  font-size: 1.08rem;
 }
 
 .meta,
@@ -623,7 +625,7 @@ html[data-theme="dark"] .fallback-panel {
   .theme-toggle__button {
     width: 40px;
     height: 40px;
-    font-size: 1.04rem;
+    font-size: 1.12rem;
   }
 
   .field {
