@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   GeolocationStatus,
@@ -41,6 +41,7 @@ export function TransitDashboard() {
   const [loading, setLoading] = useState(true);
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
+  const geolocationWatchId = useRef<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -97,7 +98,36 @@ export function TransitDashboard() {
 
       setGeolocationStatus("requesting");
 
-      const watchId = navigator.geolocation.watchPosition(
+      const startWatching = () => {
+        if (geolocationWatchId.current != null) {
+          navigator.geolocation.clearWatch(geolocationWatchId.current);
+        }
+
+        geolocationWatchId.current = navigator.geolocation.watchPosition(
+          (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+            });
+            setGeolocationStatus("ready");
+          },
+          (error) => {
+            if (error.code === error.PERMISSION_DENIED) {
+              setGeolocationStatus("denied");
+            } else {
+              setGeolocationStatus("error");
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: REALTIME_POLL_MS,
+            timeout: 10000,
+          },
+        );
+      };
+
+      navigator.geolocation.getCurrentPosition(
         (position) => {
           setUserLocation({
             lat: position.coords.latitude,
@@ -105,6 +135,7 @@ export function TransitDashboard() {
             accuracy: position.coords.accuracy,
           });
           setGeolocationStatus("ready");
+          startWatching();
         },
         (error) => {
           if (error.code === error.PERMISSION_DENIED) {
@@ -115,12 +146,12 @@ export function TransitDashboard() {
         },
         {
           enableHighAccuracy: true,
-          maximumAge: REALTIME_POLL_MS,
+          maximumAge: 0,
           timeout: 10000,
         },
       );
 
-      return watchId;
+      return geolocationWatchId.current ?? undefined;
     },
     [],
   );
@@ -141,6 +172,10 @@ export function TransitDashboard() {
     return () => {
       if (typeof watchId === "number") {
         navigator.geolocation.clearWatch(watchId);
+      }
+      if (geolocationWatchId.current != null) {
+        navigator.geolocation.clearWatch(geolocationWatchId.current);
+        geolocationWatchId.current = null;
       }
     };
   }, [requestUserLocation]);
@@ -311,11 +346,31 @@ export function TransitDashboard() {
               Si abres la web desde una URL local tipo `http://192.168...`, Safari no
               mostrara el permiso de ubicacion.
             </div>
+          ) : geolocationStatus === "denied" ? (
+            <div className="stop-card stop-card--hint">
+              Safari no ha concedido acceso a la ubicacion. Puedes tocar el boton
+              de centrar del mapa para volver a intentarlo o revisar los permisos
+              del sitio en el navegador del iPhone.
+            </div>
           ) : selectedStop ? (
             <div className="stop-card">
               <div className="stop-card__header">
                 <strong>{selectedStop.name}</strong>
-                <span>#{selectedStop.id}</span>
+                <div className="stop-card__actions">
+                  <span>#{selectedStop.id}</span>
+                  <button
+                    type="button"
+                    className="stop-card__close"
+                    onClick={() => {
+                      setSelectedStop(null);
+                      setStopPanel(null);
+                      setStopError(null);
+                    }}
+                    aria-label="Cerrar informacion de parada"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
               {stopError ? <p className="error-text">{stopError}</p> : null}
               {stopPanel ? (

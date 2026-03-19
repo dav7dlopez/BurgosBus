@@ -15,7 +15,6 @@ import {
   Marker,
   Pane,
   Polyline,
-  Popup,
   useMap,
 } from "react-leaflet";
 
@@ -230,53 +229,6 @@ function getHeadingDegrees(vehicle: VehiclePosition, route: RouteShape | undefin
   return (Math.atan2(dy, dx) * 180) / Math.PI;
 }
 
-function formatEta(seconds: number) {
-  if (seconds < 60) {
-    return `${seconds} s`;
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-
-  return remainder === 0 ? `${minutes} min` : `${minutes} min ${remainder}s`;
-}
-
-function StopPopup({
-  stop,
-  selectedStopDetails,
-}: {
-  stop: Stop;
-  selectedStopDetails: StopArrivalsResponse | null;
-}) {
-  const arrivals =
-    selectedStopDetails?.stop.id === stop.id
-      ? selectedStopDetails.arrivals.slice(0, 4)
-      : [];
-
-  return (
-    <div className="stop-popup">
-      <strong>{stop.name}</strong>
-      <div className="stop-popup__meta">Parada #{stop.id}</div>
-      {arrivals.length === 0 ? (
-        <p>Pulsa la parada para cargar tiempos en el panel lateral.</p>
-      ) : (
-        <ul className="stop-popup__arrivals">
-          {arrivals.map((arrival) => (
-            <li
-              key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId}-${arrival.etaSeconds}`}
-            >
-              <span>
-                L{arrival.lineId} {arrival.destination}
-              </span>
-              <strong>{formatEta(arrival.etaSeconds)}</strong>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export function BusMap({
   routes,
   vehicles,
@@ -335,11 +287,7 @@ export function BusMap({
               eventHandlers={{
                 click: () => onStopSelect(stop),
               }}
-            >
-              <Popup>
-                <StopPopup stop={stop} selectedStopDetails={selectedStopDetails} />
-              </Popup>
-            </Marker>
+            />
           ))}
         </Pane>
 
@@ -352,17 +300,7 @@ export function BusMap({
                 routesById.get(vehicle.routeId ?? "")?.colorHint ?? "#dc2626",
                 getHeadingDegrees(vehicle, routesById.get(vehicle.routeId ?? "")),
               )}
-            >
-              <Popup>
-                <div className="stop-popup">
-                  <strong>Bus {vehicle.vehicleId}</strong>
-                  <div className="stop-popup__meta">
-                    Ruta {vehicle.routeId ?? "sin dato"}
-                  </div>
-                  <p>Posicion actual del vehiculo en servicio.</p>
-                </div>
-              </Popup>
-            </Marker>
+            />
           ))}
         </Pane>
 
@@ -384,14 +322,7 @@ export function BusMap({
             <Marker
               position={[userLocation.lat, userLocation.lng]}
               icon={userLocationIcon}
-            >
-              <Popup>
-                <div className="stop-popup">
-                  <strong>Tu ubicacion</strong>
-                  <p>Posicion obtenida desde el navegador.</p>
-                </div>
-              </Popup>
-            </Marker>
+            />
           </Pane>
         ) : null}
       </MapContainer>
