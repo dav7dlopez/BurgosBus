@@ -8,8 +8,11 @@ import type {
   LineDetail,
   Stop,
   StopArrivalsResponse,
+  UserLocation,
   VehiclePosition,
 } from "@/lib/types";
+
+const REALTIME_POLL_MS = 10000;
 
 const BusMap = dynamic(
   () => import("@/components/bus-map").then((module) => module.BusMap),
@@ -31,6 +34,7 @@ export function TransitDashboard() {
   const [vehicles, setVehicles] = useState<VehiclePosition[]>([]);
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
   const [stopPanel, setStopPanel] = useState<StopArrivalsResponse | null>(null);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
@@ -69,6 +73,34 @@ export function TransitDashboard() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+      },
+      () => {
+        setUserLocation(null);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: REALTIME_POLL_MS,
+        timeout: 10000,
+      },
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
     };
   }, []);
 
@@ -132,7 +164,7 @@ export function TransitDashboard() {
           );
         }
       }
-    }, 10000);
+    }, REALTIME_POLL_MS);
 
     return () => {
       active = false;
@@ -171,7 +203,7 @@ export function TransitDashboard() {
 
     const intervalId = window.setInterval(() => {
       void loadArrivals();
-    }, 10000);
+    }, REALTIME_POLL_MS);
 
     return () => {
       active = false;
@@ -221,10 +253,6 @@ export function TransitDashboard() {
             </div>
           ) : null}
 
-          <div className="status-card status-card--compact">
-            <span>Refresh</span>
-            <strong>10 s</strong>
-          </div>
         </div>
       </header>
 
@@ -290,6 +318,7 @@ export function TransitDashboard() {
             onStopSelect={setSelectedStop}
             vehicles={vehicles}
             highlightedLineId={selectedLineId || null}
+            userLocation={userLocation}
           />
         </div>
       </section>

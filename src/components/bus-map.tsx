@@ -10,6 +10,7 @@ import L, {
 import "maplibre-gl";
 import "@maplibre/maplibre-gl-leaflet";
 import {
+  Circle,
   MapContainer,
   Marker,
   Pane,
@@ -19,7 +20,13 @@ import {
 } from "react-leaflet";
 
 import { defaultMapProvider, type VectorStyleMapProvider } from "@/lib/map-config";
-import type { RouteShape, Stop, StopArrivalsResponse, VehiclePosition } from "@/lib/types";
+import type {
+  RouteShape,
+  Stop,
+  StopArrivalsResponse,
+  UserLocation,
+  VehiclePosition,
+} from "@/lib/types";
 
 type BusMapProps = {
   routes: RouteShape[];
@@ -29,6 +36,7 @@ type BusMapProps = {
   onStopSelect: (stop: Stop) => void;
   provider?: VectorStyleMapProvider;
   highlightedLineId?: string | null;
+  userLocation?: UserLocation | null;
 };
 
 type StopMarkerData = Stop & {
@@ -68,6 +76,17 @@ function createBusIcon(color: string, rotationDeg: number): DivIcon {
     `,
   });
 }
+
+const userLocationIcon = divIcon({
+  className: "",
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  html: `
+    <span class="user-location-icon">
+      <span class="user-location-icon__dot"></span>
+    </span>
+  `,
+});
 
 function OpenFreeMapLayer({ provider }: { provider: VectorStyleMapProvider }) {
   const map = useMap();
@@ -228,6 +247,7 @@ export function BusMap({
   selectedStopDetails,
   onStopSelect,
   provider = defaultMapProvider,
+  userLocation,
 }: BusMapProps) {
   const stops = useMemo(() => dedupeStops(routes), [routes]);
   const routesById = useMemo(
@@ -301,6 +321,35 @@ export function BusMap({
             </Marker>
           ))}
         </Pane>
+
+        {userLocation ? (
+          <Pane name="user-location" style={{ zIndex: 760 }}>
+            {userLocation.accuracy ? (
+              <Circle
+                center={[userLocation.lat, userLocation.lng]}
+                radius={userLocation.accuracy}
+                pathOptions={{
+                  color: "#2563eb",
+                  fillColor: "#60a5fa",
+                  fillOpacity: 0.12,
+                  weight: 1,
+                }}
+              />
+            ) : null}
+
+            <Marker
+              position={[userLocation.lat, userLocation.lng]}
+              icon={userLocationIcon}
+            >
+              <Popup>
+                <div className="stop-popup">
+                  <strong>Tu ubicacion</strong>
+                  <p>Posicion obtenida desde el navegador.</p>
+                </div>
+              </Popup>
+            </Marker>
+          </Pane>
+        ) : null}
       </MapContainer>
 
       <div className="map-legend">

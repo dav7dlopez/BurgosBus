@@ -68,3 +68,9 @@ export type StopArrivalsResponse = {
   arrivals: ArrivalPrediction[];
   observedAt: string;
 };
+
+export type UserLocation = {
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+};

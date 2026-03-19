@@ -76,7 +76,6 @@ a {
   font-weight: 700;
 }
 
-.status-card,
 .fallback-panel,
 .line-summary,
 .map-shell {
@@ -92,36 +91,13 @@ a {
   gap: 12px;
 }
 
-.status-card {
-  min-width: 220px;
-  padding: 18px 20px;
-  border-radius: 20px;
-  display: grid;
-  gap: 4px;
-}
-
-.status-card span,
+.line-summary span,
 .line-summary span,
 .meta,
 .card p,
 .vehicle-list span,
 .route-list p {
   color: var(--muted);
-}
-
-.status-card strong {
-  font-size: 1.8rem;
-  color: var(--accent-strong);
-}
-
-.status-card--compact {
-  min-width: 120px;
-  padding: 10px 14px;
-  border-radius: 16px;
-}
-
-.status-card--compact strong {
-  font-size: 1.2rem;
 }
 
 .field {
@@ -342,6 +318,24 @@ a {
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-bottom: 10px solid color-mix(in srgb, var(--route-color) 90%, black 10%);
+}
+
+.user-location-icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.16);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.12);
+}
+
+.user-location-icon__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #2563eb;
+  border: 2px solid #ffffff;
 }
 
 .stop-popup {
