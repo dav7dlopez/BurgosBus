@@ -10,12 +10,25 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const lat = Number(searchParams.get("lat"));
     const lng = Number(searchParams.get("lng"));
-    const radiusMeters = Number(searchParams.get("radius") ?? DEFAULT_RADIUS_METERS);
+    const radiusParam = searchParams.get("radius");
+    const radiusMeters =
+      radiusParam === null ? DEFAULT_RADIUS_METERS : Number(radiusParam);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return NextResponse.json(
         {
           error: "lat y lng son obligatorios",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (radiusParam !== null && (!Number.isFinite(radiusMeters) || radiusMeters <= 0)) {
+      return NextResponse.json(
+        {
+          error: "radius debe ser un numero mayor que 0",
         },
         {
           status: 400,

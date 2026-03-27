@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { IconBus, IconChevronRight } from "@tabler/icons-react";
 import L, {
   divIcon,
   latLngBounds,
@@ -67,26 +69,34 @@ function createStopIcon(
     html: `
       <span class="bus-stop-icon${isSelected ? " is-selected" : ""}${
         isNearby ? " is-nearby" : ""
-      }" style="--stop-fill:${gradient}">
-        <span class="bus-stop-icon__pole"></span>
+      }" style="--stop-fill:${gradient}; --stop-accent:${colors[0] ?? "#0f766e"};">
+        <span class="bus-stop-icon__inner"></span>
       </span>
     `,
   });
 }
 
 function createBusIcon(color: string, rotationDeg: number): DivIcon {
+  const normalizedHeading = ((rotationDeg % 360) + 360) % 360;
+  const directionFlip = normalizedHeading > 90 && normalizedHeading < 270 ? -1 : 1;
+  const busIcon = renderToStaticMarkup(
+    <IconBus size={20} strokeWidth={2} aria-hidden="true" focusable="false" />,
+  );
+  const directionIcon = renderToStaticMarkup(
+    <IconChevronRight size={9} strokeWidth={2.4} aria-hidden="true" focusable="false" />,
+  );
+
   return divIcon({
     className: "",
-    iconSize: [54, 54],
-    iconAnchor: [27, 27],
-    popupAnchor: [0, -24],
+    iconSize: [50, 32],
+    iconAnchor: [25, 16],
+    popupAnchor: [0, -16],
     html: `
-      <span class="bus-vehicle-icon" style="--route-color:${color}; --heading:${rotationDeg}deg;">
-        <span class="bus-vehicle-icon__direction">
-          <span class="bus-vehicle-icon__shaft"></span>
-          <span class="bus-vehicle-icon__arrow"></span>
+      <span class="bus-vehicle-icon" style="--route-color:${color}; --direction-flip:${directionFlip};">
+        <span class="bus-vehicle-icon__shell">
+          <span class="bus-vehicle-icon__bus">${busIcon}</span>
+          <span class="bus-vehicle-icon__direction">${directionIcon}</span>
         </span>
-        <span class="bus-vehicle-icon__body">🚌</span>
       </span>
     `,
   });
@@ -373,15 +383,34 @@ export function BusMap({
 
         <Pane name="routes" style={{ zIndex: 410 }}>
           {routes.map((route) => (
-            <Polyline
-              key={route.routeId}
-              positions={route.path.map((point) => [point.lat, point.lng] as LatLngExpression)}
-              pathOptions={{
-                color: route.colorHint,
-                weight: 6,
-                opacity: 0.95,
-              }}
-            />
+            <Fragment key={route.routeId}>
+              <Polyline
+                key={`${route.routeId}-shadow`}
+                positions={route.path.map(
+                  (point) => [point.lat, point.lng] as LatLngExpression,
+                )}
+                pathOptions={{
+                  color: "rgba(8, 12, 16, 0.34)",
+                  weight: 7,
+                  opacity: 0.72,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+              />
+              <Polyline
+                key={`${route.routeId}-main`}
+                positions={route.path.map(
+                  (point) => [point.lat, point.lng] as LatLngExpression,
+                )}
+                pathOptions={{
+                  color: route.colorHint,
+                  weight: 4.5,
+                  opacity: 0.9,
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+              />
+            </Fragment>
           ))}
         </Pane>
 
@@ -439,10 +468,10 @@ export function BusMap({
       </MapContainer>
 
       <div className="map-legend">
-        <span>Proveedor base: {provider.name}</span>
-        <span>Paradas: {stops.length}</span>
-        <span>Vehiculos activos: {vehicles.length}</span>
-        <span>Llegadas visibles: {selectedStopDetails?.arrivals.length ?? 0}</span>
+        <span>Base cartográfica: {provider.name}</span>
+        <span>Paradas visibles: {stops.length}</span>
+        <span>Vehículos activos: {vehicles.length}</span>
+        <span>Llegadas mostradas: {selectedStopDetails?.arrivals.length ?? 0}</span>
       </div>
     </div>
   );

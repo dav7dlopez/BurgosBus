@@ -454,7 +454,7 @@ export function TransitDashboard() {
               title="Modo claro"
               onClick={() => setTheme("light")}
             >
-              ☀️
+              Claro
             </button>
             <button
               type="button"
@@ -463,7 +463,7 @@ export function TransitDashboard() {
               title="Modo oscuro"
               onClick={() => setTheme("dark")}
             >
-              🌙
+              Oscuro
             </button>
             <button
               type="button"
@@ -477,7 +477,7 @@ export function TransitDashboard() {
                 setFocusUserLocationSignal((current) => current + 1);
               }}
             >
-              📍
+              GPS
             </button>
             <button
               type="button"
@@ -498,7 +498,7 @@ export function TransitDashboard() {
                 setFocusNearbyStopsSignal((current) => current + 1);
               }}
             >
-              🚏
+              Cercanas
             </button>
           </div>
         </div>
@@ -599,7 +599,7 @@ export function TransitDashboard() {
               {stopPanel ? (
                 <>
                   <p className="meta">
-                    Lineas: {selectedStopLineCodes || "sin dato"}
+                    Líneas: {selectedStopLineCodes || "sin información"}
                   </p>
                   <ul className="arrival-inline-list">
                     {stopPanel.arrivals.slice(0, 4).map((arrival, index) => (
@@ -614,7 +614,7 @@ export function TransitDashboard() {
                           onClick={() => activateLineFromStop(arrival.lineId)}
                         >
                           <span>
-                            L{arrival.lineId} {arrival.destination}
+                            Línea {arrival.lineId} · {arrival.destination}
                           </span>
                           <strong>{formatEta(arrival.etaSeconds)}</strong>
                         </button>
@@ -623,12 +623,12 @@ export function TransitDashboard() {
                   </ul>
                 </>
               ) : (
-                <p className="meta">Cargando tiempos...</p>
+                <p className="meta">Cargando tiempos de llegada...</p>
               )}
             </div>
           ) : (
             <div className="stop-card stop-card--hint">
-              Pulsa una parada para ver tiempos de llegada.
+              Selecciona una parada para ver sus tiempos de llegada.
             </div>
           )}
         </div>
