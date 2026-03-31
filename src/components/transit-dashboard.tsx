@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { mapProviders } from "@/lib/map-config";
 import type {
@@ -25,9 +25,15 @@ const BusMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="fallback-panel">
-        <h2>Cargando mapa</h2>
-        <p>Inicializando Leaflet y la capa base de OpenFreeMap.</p>
+      <div className="fallback-panel fallback-panel--loading">
+        <span className="fallback-panel__eyebrow">Mapa en directo</span>
+        <h2>Preparando el mapa</h2>
+        <p>Cargando la base cartografica y los controles interactivos.</p>
+        <div className="stop-card__skeleton" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
       </div>
     ),
   },
@@ -552,29 +558,48 @@ export function TransitDashboard() {
 
         <div className="map-overlay map-overlay--bottom">
           {geolocationStatus === "insecure" ? (
-            <div className="stop-card stop-card--hint">
-              La ubicacion del navegador necesita HTTPS y permisos del sitio para
-              poder mostrarse.
-            </div>
+            <StatusCard
+              eyebrow="Ubicacion"
+              title="Activa HTTPS para usar tu posicion"
+              description="La ubicacion del navegador solo funciona en un contexto seguro y con permisos del sitio."
+            />
           ) : geolocationStatus === "denied" ? (
-            <div className="stop-card stop-card--hint">
-              El navegador no ha concedido acceso a la ubicacion. Puedes reactivarla
-              con el boton GPS de arriba o revisar los permisos del sitio.
-            </div>
+            <StatusCard
+              eyebrow="Ubicacion"
+              title="No hay acceso a tu ubicacion"
+              description="Puedes volver a activarla con el boton GPS o revisar los permisos del navegador para este sitio."
+            />
+          ) : geolocationStatus === "unsupported" ? (
+            <StatusCard
+              eyebrow="Ubicacion"
+              title="Este navegador no ofrece geolocalizacion"
+              description="La app seguira funcionando con el mapa y las lineas, pero sin funciones basadas en tu posicion."
+            />
           ) : nearbyModeEnabled && nearbyStops.length > 0 && !selectedStop ? (
-            <div className="stop-card stop-card--hint">
-              {nearbyStops.length} paradas cercanas encontradas en un radio de 1 km.
-              Pulsa cualquiera en el mapa para ver sus lineas y tiempos.
-            </div>
+            <StatusCard
+              eyebrow="Paradas cercanas"
+              title={`${nearbyStops.length} paradas disponibles a tu alrededor`}
+              description="Pulsa cualquiera en el mapa para consultar sus lineas activas y los proximos tiempos de paso."
+            />
           ) : nearbyModeEnabled && nearbyStopsLoading && !selectedStop ? (
-            <div className="stop-card stop-card--hint">
-              Buscando paradas cercanas alrededor de tu ubicacion...
-            </div>
+            <StatusCard
+              eyebrow="Paradas cercanas"
+              title="Buscando paradas cerca de ti"
+              description="Estamos consultando las paradas disponibles alrededor de tu ubicacion."
+              tone="loading"
+            >
+              <div className="stop-card__skeleton" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </StatusCard>
           ) : nearbyModeEnabled && nearbyStopsResolved && userLocation && !selectedStop ? (
-            <div className="stop-card stop-card--hint">
-              No se han encontrado paradas en un radio de 1 km alrededor de tu
-              ubicacion actual.
-            </div>
+            <StatusCard
+              eyebrow="Paradas cercanas"
+              title="No hay paradas en este radio"
+              description="No hemos encontrado paradas urbanas en 1 km alrededor de tu ubicacion actual."
+            />
           ) : selectedStop ? (
             <div className="stop-card">
               <div className="stop-card__header">
@@ -595,41 +620,66 @@ export function TransitDashboard() {
                   </button>
                 </div>
               </div>
-              {stopError ? <p className="error-text">{stopError}</p> : null}
+              {stopError ? (
+                <div className="stop-card__message stop-card__message--error">
+                  <strong>No hemos podido actualizar esta parada</strong>
+                  <p>{stopError}</p>
+                </div>
+              ) : null}
               {stopPanel ? (
                 <>
                   <p className="meta">
                     Líneas: {selectedStopLineCodes || "sin información"}
                   </p>
-                  <ul className="arrival-inline-list">
-                    {stopPanel.arrivals.slice(0, 4).map((arrival, index) => (
-                      <li
-                        key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId ?? "na"}-${arrival.etaSeconds}-${index}`}
-                      >
-                        <button
-                          type="button"
-                          className={`arrival-inline-button${
-                            arrival.lineId === selectedLineId ? " is-active" : ""
-                          }`}
-                          onClick={() => activateLineFromStop(arrival.lineId)}
+                  {stopPanel.arrivals.length > 0 ? (
+                    <ul className="arrival-inline-list">
+                      {stopPanel.arrivals.slice(0, 4).map((arrival, index) => (
+                        <li
+                          key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId ?? "na"}-${arrival.etaSeconds}-${index}`}
                         >
-                          <span>
-                            Línea {arrival.lineId} · {arrival.destination}
-                          </span>
-                          <strong>{formatEta(arrival.etaSeconds)}</strong>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                          <button
+                            type="button"
+                            className={`arrival-inline-button${
+                              arrival.lineId === selectedLineId ? " is-active" : ""
+                            }`}
+                            onClick={() => activateLineFromStop(arrival.lineId)}
+                          >
+                            <span>
+                              Línea {arrival.lineId} · {arrival.destination}
+                            </span>
+                            <strong>{formatEta(arrival.etaSeconds)}</strong>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="stop-card__message stop-card__message--empty">
+                      <strong>No hay llegadas visibles ahora mismo</strong>
+                      <p>
+                        La parada no muestra tiempos en este momento. Prueba de nuevo
+                        en unos segundos o cambia de linea activa.
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
-                <p className="meta">Cargando tiempos de llegada...</p>
+                <div className="stop-card__message stop-card__message--loading">
+                  <strong>Cargando tiempos de llegada</strong>
+                  <p>Consultando la informacion en tiempo real de esta parada.</p>
+                  <div className="stop-card__skeleton" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
               )}
             </div>
           ) : (
-            <div className="stop-card stop-card--hint">
-              Selecciona una parada para ver sus tiempos de llegada.
-            </div>
+            <StatusCard
+              eyebrow="Detalle de parada"
+              title="Selecciona una parada"
+              description="Pulsa una parada del mapa para ver sus lineas activas y los proximos tiempos de paso."
+            />
           )}
         </div>
 
@@ -657,6 +707,31 @@ export function TransitDashboard() {
         </div>
       </section>
     </main>
+  );
+}
+
+type StatusCardProps = {
+  description: string;
+  eyebrow?: string;
+  title: string;
+  tone?: "neutral" | "loading";
+  children?: ReactNode;
+};
+
+function StatusCard({
+  description,
+  eyebrow,
+  title,
+  tone = "neutral",
+  children,
+}: StatusCardProps) {
+  return (
+    <div className={`stop-card stop-card--hint stop-card--state stop-card--${tone}`}>
+      {eyebrow ? <span className="stop-card__eyebrow">{eyebrow}</span> : null}
+      <strong className="stop-card__title">{title}</strong>
+      <p className="stop-card__description">{description}</p>
+      {children}
+    </div>
   );
 }
 

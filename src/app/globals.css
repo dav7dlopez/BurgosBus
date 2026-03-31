@@ -378,6 +378,44 @@ a {
   min-width: auto;
 }
 
+.stop-card--state {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.stop-card--loading {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 88%, white 12%), var(--surface-elevated));
+}
+
+.stop-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stop-card__title {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.stop-card__description {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .stop-card__header {
   display: flex;
   justify-content: space-between;
@@ -405,6 +443,72 @@ a {
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
+}
+
+.stop-card__message {
+  margin-top: 12px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface-alt), var(--surface));
+  display: grid;
+  gap: 6px;
+}
+
+.stop-card__message strong {
+  display: block;
+  letter-spacing: -0.02em;
+}
+
+.stop-card__message p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.stop-card__message--error {
+  border-color: rgba(180, 35, 24, 0.18);
+  background: linear-gradient(
+    180deg,
+    rgba(180, 35, 24, 0.05),
+    rgba(180, 35, 24, 0.02)
+  );
+}
+
+.stop-card__message--error strong,
+.stop-card__message--error p {
+  color: var(--danger);
+}
+
+.stop-card__message--loading {
+  gap: 10px;
+}
+
+.stop-card__skeleton {
+  display: grid;
+  gap: 8px;
+}
+
+.stop-card__skeleton span {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-alt) 72%, transparent) 0%,
+    color-mix(in srgb, white 72%, var(--surface-alt) 28%) 50%,
+    color-mix(in srgb, var(--surface-alt) 72%, transparent) 100%
+  );
+  background-size: 220% 100%;
+  animation: pulse-sheen 1.4s ease-in-out infinite;
+}
+
+.stop-card__skeleton span:nth-child(2) {
+  width: 88%;
+}
+
+.stop-card__skeleton span:nth-child(3) {
+  width: 72%;
 }
 
 .arrival-inline-list {
@@ -460,10 +564,39 @@ a {
   padding: 26px 28px;
 }
 
+.fallback-panel--loading {
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.fallback-panel__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .fallback-panel h2 {
   margin-top: 0;
   margin-bottom: 8px;
   letter-spacing: -0.03em;
+}
+
+.fallback-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .bus-stop-icon,
@@ -643,13 +776,28 @@ html[data-theme="dark"] .fallback-panel {
 
 .error-banner {
   margin: 8px 16px 0;
-  background: rgba(180, 35, 24, 0.06);
+  background: linear-gradient(
+    180deg,
+    rgba(180, 35, 24, 0.08),
+    rgba(180, 35, 24, 0.03)
+  );
   border: 1px solid rgba(180, 35, 24, 0.18);
-  padding: 11px 14px;
-  border-radius: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
   position: relative;
   z-index: 1201;
   font-weight: 600;
+  box-shadow: 0 8px 20px rgba(180, 35, 24, 0.08);
+}
+
+@keyframes pulse-sheen {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .map-overlay--top .route-legend,

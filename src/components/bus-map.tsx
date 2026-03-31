@@ -49,7 +49,11 @@ type BusMapProps = {
 
 type StopMarkerData = Stop & {
   colors: string[];
+  routeIds: string[];
 };
+
+const MIN_STOP_ROUTE_OFFSET = 0.00003;
+const MAX_STOP_ROUTE_OFFSET = 0.000075;
 
 function createStopIcon(
   colors: string[],
@@ -271,12 +275,16 @@ function dedupeStops(routes: RouteShape[]) {
         if (!existing.colors.includes(route.colorHint)) {
           existing.colors.push(route.colorHint);
         }
+        if (!existing.routeIds.includes(route.routeId)) {
+          existing.routeIds.push(route.routeId);
+        }
         return;
       }
 
       seen.set(stop.id, {
         ...stop,
         colors: [route.colorHint],
+        routeIds: [route.routeId],
       });
     });
   });
@@ -296,38 +304,178 @@ function mergeNearbyStops(baseStops: StopMarkerData[], nearbyStops: Stop[]) {
     merged.set(stop.id, {
       ...stop,
       colors: ["#34d399"],
+      routeIds: [],
     });
   });
 
   return [...merged.values()];
 }
 
-function getHeadingDegrees(vehicle: VehiclePosition, route: RouteShape | undefined) {
-  if (!route || route.path.length < 2) {
-    return vehicle.headingDegrees ?? 0;
+function getProjectedPositionOnSegment(
+  point: { lat: number; lng: number },
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+) {
+  const segmentDx = end.lng - start.lng;
+  const segmentDy = end.lat - start.lat;
+  const segmentLengthSquared = segmentDx * segmentDx + segmentDy * segmentDy;
+
+  if (segmentLengthSquared === 0) {
+    return {
+      distance: Math.hypot(point.lat - start.lat, point.lng - start.lng),
+      lat: start.lat,
+      lng: start.lng,
+      t: 0,
+      dx: 0,
+      dy: 0,
+    };
   }
 
-  let nearestIndex = 0;
-  let nearestDistance = Number.POSITIVE_INFINITY;
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.lng - start.lng) * segmentDx + (point.lat - start.lat) * segmentDy) /
+        segmentLengthSquared,
+    ),
+  );
 
-  route.path.forEach((point, index) => {
-    const distance = Math.hypot(point.lat - vehicle.lat, point.lng - vehicle.lng);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestIndex = index;
+  const projectedLng = start.lng + segmentDx * t;
+  const projectedLat = start.lat + segmentDy * t;
+
+  return {
+    distance: Math.hypot(point.lat - projectedLat, point.lng - projectedLng),
+    lat: projectedLat,
+    lng: projectedLng,
+    t,
+    dx: segmentDx,
+    dy: segmentDy,
+  };
+}
+
+function getStopPlacement(stop: StopMarkerData, candidateRoutes: RouteShape[]) {
+  if (candidateRoutes.length === 0) {
+    return { lat: stop.lat, lng: stop.lng };
+  }
+
+  let bestMatch:
+    | {
+        distance: number;
+        lat: number;
+        lng: number;
+        dx: number;
+        dy: number;
+      }
+    | undefined;
+
+  candidateRoutes.forEach((route) => {
+    if (route.path.length < 2) {
+      return;
+    }
+
+    for (let index = 0; index < route.path.length - 1; index += 1) {
+      const start = route.path[index];
+      const end = route.path[index + 1];
+      const projection = getProjectedPositionOnSegment(stop, start, end);
+
+      if (!bestMatch || projection.distance < bestMatch.distance) {
+        bestMatch = projection;
+      }
     }
   });
 
-  const current = route.path[nearestIndex];
-  const target =
-    route.path[nearestIndex + 1] ??
-    route.path[nearestIndex - 1] ??
-    route.path[nearestIndex];
+  if (!bestMatch) {
+    return { lat: stop.lat, lng: stop.lng };
+  }
 
-  const dx = target.lng - current.lng;
-  const dy = target.lat - current.lat;
+  if (
+    bestMatch.distance >= MIN_STOP_ROUTE_OFFSET &&
+    bestMatch.distance <= MAX_STOP_ROUTE_OFFSET
+  ) {
+    return { lat: stop.lat, lng: stop.lng };
+  }
 
-  return (Math.atan2(dy, dx) * 180) / Math.PI;
+  const offsetDistance =
+    bestMatch.distance > MAX_STOP_ROUTE_OFFSET
+      ? Math.max(
+          MIN_STOP_ROUTE_OFFSET,
+          Math.min(MAX_STOP_ROUTE_OFFSET, bestMatch.distance * 0.35),
+        )
+      : MIN_STOP_ROUTE_OFFSET;
+
+  let offsetLat = stop.lat - bestMatch.lat;
+  let offsetLng = stop.lng - bestMatch.lng;
+  const offsetLength = Math.hypot(offsetLat, offsetLng);
+
+  if (offsetLength < 1e-9) {
+    const normalLength = Math.hypot(bestMatch.dx, bestMatch.dy) || 1;
+    offsetLat = bestMatch.dx / normalLength;
+    offsetLng = -bestMatch.dy / normalLength;
+  } else {
+    offsetLat /= offsetLength;
+    offsetLng /= offsetLength;
+  }
+
+  return {
+    lat: bestMatch.lat + offsetLat * offsetDistance,
+    lng: bestMatch.lng + offsetLng * offsetDistance,
+  };
+}
+
+function getVehiclePlacement(
+  vehicle: VehiclePosition,
+  route: RouteShape | undefined,
+) {
+  if (!route || route.path.length < 2) {
+    return {
+      heading: vehicle.headingDegrees ?? 0,
+      lat: vehicle.lat,
+      lng: vehicle.lng,
+    };
+  }
+
+  let bestPlacement:
+    | {
+        distance: number;
+        heading: number;
+        lat: number;
+        lng: number;
+      }
+    | undefined;
+
+  for (let index = 0; index < route.path.length - 1; index += 1) {
+    const start = route.path[index];
+    const end = route.path[index + 1];
+    const projection = getProjectedPositionOnSegment(vehicle, start, end);
+    const heading = (Math.atan2(end.lat - start.lat, end.lng - start.lng) * 180) / Math.PI;
+
+    if (!bestPlacement || projection.distance < bestPlacement.distance) {
+      bestPlacement = {
+        distance: projection.distance,
+        heading,
+        lat: projection.lat,
+        lng: projection.lng,
+      };
+    }
+  }
+
+  if (!bestPlacement) {
+    return {
+      heading: vehicle.headingDegrees ?? 0,
+      lat: vehicle.lat,
+      lng: vehicle.lng,
+    };
+  }
+
+  return {
+    heading:
+      Number.isFinite(vehicle.headingDegrees) &&
+      Math.abs((vehicle.headingDegrees ?? 0) - bestPlacement.heading) < 120
+        ? (vehicle.headingDegrees ?? 0)
+        : bestPlacement.heading,
+    lat: bestPlacement.lat,
+    lng: bestPlacement.lng,
+  };
 }
 
 export function BusMap({
@@ -352,6 +500,38 @@ export function BusMap({
   const routesById = useMemo(
     () => new Map(routes.map((route) => [route.routeId, route])),
     [routes],
+  );
+  const positionedStops = useMemo(
+    () =>
+      stops.map((stop) => {
+        const candidateRoutes = stop.routeIds
+          .map((routeId) => routesById.get(routeId))
+          .filter((route): route is RouteShape => Boolean(route));
+        const placement = getStopPlacement(stop, candidateRoutes);
+
+        return {
+          ...stop,
+          markerLat: placement.lat,
+          markerLng: placement.lng,
+        };
+      }),
+    [routesById, stops],
+  );
+  const positionedVehicles = useMemo(
+    () =>
+      vehicles.map((vehicle) => {
+        const route = routesById.get(vehicle.routeId ?? "");
+        const placement = getVehiclePlacement(vehicle, route);
+
+        return {
+          ...vehicle,
+          markerHeading: placement.heading,
+          markerLat: placement.lat,
+          markerLng: placement.lng,
+          routeColor: route?.colorHint ?? "#dc2626",
+        };
+      }),
+    [routesById, vehicles],
   );
 
   return (
@@ -415,10 +595,10 @@ export function BusMap({
         </Pane>
 
         <Pane name="stops" style={{ zIndex: 650 }}>
-          {stops.map((stop) => (
+          {positionedStops.map((stop) => (
             <Marker
               key={stop.id}
-              position={[stop.lat, stop.lng]}
+              position={[stop.markerLat, stop.markerLng]}
               icon={createStopIcon(
                 stop.colors,
                 stop.id === selectedStopId,
@@ -432,14 +612,11 @@ export function BusMap({
         </Pane>
 
         <Pane name="vehicles" style={{ zIndex: 720 }}>
-          {vehicles.map((vehicle) => (
+          {positionedVehicles.map((vehicle) => (
             <Marker
               key={vehicle.vehicleId}
-              position={[vehicle.lat, vehicle.lng]}
-              icon={createBusIcon(
-                routesById.get(vehicle.routeId ?? "")?.colorHint ?? "#dc2626",
-                getHeadingDegrees(vehicle, routesById.get(vehicle.routeId ?? "")),
-              )}
+              position={[vehicle.markerLat, vehicle.markerLng]}
+              icon={createBusIcon(vehicle.routeColor, vehicle.markerHeading)}
             />
           ))}
         </Pane>
