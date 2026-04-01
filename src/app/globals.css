@@ -1090,12 +1090,18 @@ html[data-theme="dark"] .fallback-panel {
   }
 
   .line-picker__row {
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
   }
 
   .favorite-toggle {
-    min-width: 46px;
+    width: 44px;
+    min-width: 44px;
     min-height: 44px;
+    padding: 0;
+    justify-self: end;
   }
 
   .favorite-toggle__label {
