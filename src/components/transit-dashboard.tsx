@@ -18,6 +18,7 @@ import type {
 
 const REALTIME_POLL_MS = 10000;
 const THEME_STORAGE_KEY = "bus-burgos-theme";
+const FAVORITE_LINES_STORAGE_KEY = "bus-burgos-favorite-lines";
 const NEARBY_STOP_RADIUS_METERS = 1000;
 
 const BusMap = dynamic(
@@ -45,6 +46,7 @@ export function TransitDashboard() {
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
+  const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDetail, setLineDetail] = useState<LineDetail | null>(null);
   const [vehicles, setVehicles] = useState<VehiclePosition[]>([]);
@@ -84,9 +86,42 @@ export function TransitDashboard() {
       return;
     }
 
+    try {
+      const savedFavorites = window.localStorage.getItem(FAVORITE_LINES_STORAGE_KEY);
+      if (!savedFavorites) {
+        return;
+      }
+
+      const parsedFavorites = JSON.parse(savedFavorites);
+      if (Array.isArray(parsedFavorites)) {
+        setFavoriteLineIds(
+          parsedFavorites.filter((value): value is string => typeof value === "string"),
+        );
+      }
+    } catch {
+      window.localStorage.removeItem(FAVORITE_LINES_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      FAVORITE_LINES_STORAGE_KEY,
+      JSON.stringify(favoriteLineIds),
+    );
+  }, [favoriteLineIds]);
 
   useEffect(() => {
     let isMounted = true;
@@ -429,10 +464,25 @@ export function TransitDashboard() {
     [routes],
   );
   const selectedStopLineCodes = stopPanel?.lines.map((line) => line.publicCode).join(", ");
+  const favoriteLines = useMemo(
+    () => lines.filter((line) => favoriteLineIds.includes(line.id)),
+    [favoriteLineIds, lines],
+  );
+  const isSelectedLineFavorite = favoriteLineIds.includes(selectedLineId);
   const nearbyStopIds = useMemo(
     () => new Set(nearbyStops.map((item) => item.stop.id)),
     [nearbyStops],
   );
+
+  useEffect(() => {
+    if (lines.length === 0) {
+      return;
+    }
+
+    setFavoriteLineIds((current) =>
+      current.filter((lineId) => lines.some((line) => line.id === lineId)),
+    );
+  }, [lines]);
 
   function activateLineFromStop(lineId: string) {
     if (!selectedStop || lineId === selectedLineId) {
@@ -441,6 +491,14 @@ export function TransitDashboard() {
 
     preserveSelectedStopRef.current = selectedStop;
     setSelectedLineId(lineId);
+  }
+
+  function toggleFavoriteLine(lineId: string) {
+    setFavoriteLineIds((current) =>
+      current.includes(lineId)
+        ? current.filter((favoriteId) => favoriteId !== lineId)
+        : [...current, lineId],
+    );
   }
 
   return (
@@ -510,20 +568,72 @@ export function TransitDashboard() {
         </div>
 
         <div className="topbar-controls">
-          <label className="field field--compact">
-            <span>Linea activa</span>
-            <select
-              value={selectedLineId}
-              onChange={(event) => setSelectedLineId(event.target.value)}
-              disabled={loading || lines.length === 0}
-            >
-              {lines.map((line) => (
-                <option key={line.id} value={line.id}>
-                  {line.publicCode} {line.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="line-picker">
+            <div className="line-picker__row">
+              <label className="field field--compact">
+                <span>Linea activa</span>
+                <select
+                  value={selectedLineId}
+                  onChange={(event) => setSelectedLineId(event.target.value)}
+                  disabled={loading || lines.length === 0}
+                >
+                  {lines.map((line) => (
+                    <option key={line.id} value={line.id}>
+                      {favoriteLineIds.includes(line.id) ? "★ " : ""}
+                      {line.publicCode} {line.displayName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className={`favorite-toggle${isSelectedLineFavorite ? " is-active" : ""}`}
+                onClick={() => toggleFavoriteLine(selectedLineId)}
+                disabled={!selectedLineId}
+                aria-pressed={isSelectedLineFavorite}
+                aria-label={
+                  isSelectedLineFavorite
+                    ? "Quitar linea de favoritas"
+                    : "Marcar linea como favorita"
+                }
+                title={
+                  isSelectedLineFavorite
+                    ? "Quitar de favoritas"
+                    : "Guardar en favoritas"
+                }
+              >
+                <span className="favorite-toggle__icon" aria-hidden="true">
+                  ★
+                </span>
+                <span className="favorite-toggle__label">
+                  {isSelectedLineFavorite ? "Favorita" : "Guardar"}
+                </span>
+              </button>
+            </div>
+
+            {favoriteLines.length > 0 ? (
+              <div className="favorite-strip" aria-label="Lineas favoritas">
+                <span className="favorite-strip__label">Favoritas</span>
+                <div className="favorite-strip__scroller">
+                  {favoriteLines.map((line) => (
+                    <button
+                      key={line.id}
+                      type="button"
+                      className={`favorite-line-chip${
+                        line.id === selectedLineId ? " is-active" : ""
+                      }`}
+                      onClick={() => setSelectedLineId(line.id)}
+                    >
+                      <span className="favorite-line-chip__icon" aria-hidden="true">
+                        ★
+                      </span>
+                      {line.publicCode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
