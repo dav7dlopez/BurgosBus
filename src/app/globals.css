@@ -378,6 +378,10 @@ a {
   min-width: auto;
 }
 
+.stop-card--detail {
+  padding: 17px 17px 16px;
+}
+
 .stop-card--state {
   display: grid;
   gap: 8px;
@@ -419,10 +423,23 @@ a {
 .stop-card__header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
+}
+
+.stop-card__title-block {
+  display: grid;
+  gap: 7px;
+}
+
+.stop-card__name {
+  display: block;
+  font-size: 1.16rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
 }
 
 .stop-card__actions {
@@ -431,6 +448,16 @@ a {
   gap: 10px;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.stop-card__stop-id {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--soft-contrast);
+  font-weight: 700;
 }
 
 .stop-card__close {
@@ -482,6 +509,47 @@ a {
 
 .stop-card__message--loading {
   gap: 10px;
+}
+
+.stop-card__section {
+  display: grid;
+  gap: 10px;
+}
+
+.stop-card__section + .stop-card__section {
+  margin-top: 14px;
+}
+
+.stop-card__section--meta {
+  padding: 0 0 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.stop-card__section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.stop-card__section-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stop-card__section-caption {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stop-card__meta-text {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--text);
+  line-height: 1.45;
 }
 
 .stop-card__skeleton {
@@ -615,13 +683,18 @@ a {
     0 8px 18px rgba(17, 33, 45, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.14);
   overflow: hidden;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .bus-stop-icon.is-selected {
-  border-color: #111827;
+  transform: scale(1.08);
+  border-color: color-mix(in srgb, var(--stop-accent) 24%, #111827 76%);
   box-shadow:
     0 12px 24px rgba(17, 33, 45, 0.22),
-    0 0 0 4px rgba(17, 24, 39, 0.08);
+    0 0 0 4px color-mix(in srgb, var(--stop-accent) 18%, transparent);
 }
 
 .bus-stop-icon.is-nearby {
@@ -638,6 +711,13 @@ a {
   box-shadow:
     inset 0 0 0 1px rgba(17, 33, 45, 0.08),
     0 0 0 4px color-mix(in srgb, var(--stop-accent) 26%, transparent);
+}
+
+.bus-stop-icon.is-selected .bus-stop-icon__inner {
+  inset: 6px;
+  box-shadow:
+    inset 0 0 0 1px rgba(17, 33, 45, 0.1),
+    0 0 0 5px color-mix(in srgb, var(--stop-accent) 34%, transparent);
 }
 
 .bus-vehicle-icon {

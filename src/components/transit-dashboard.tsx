@@ -601,11 +601,14 @@ export function TransitDashboard() {
               description="No hemos encontrado paradas urbanas en 1 km alrededor de tu ubicacion actual."
             />
           ) : selectedStop ? (
-            <div className="stop-card">
+            <div className="stop-card stop-card--detail">
               <div className="stop-card__header">
-                <strong>{selectedStop.name}</strong>
+                <div className="stop-card__title-block">
+                  <span className="stop-card__eyebrow">Parada seleccionada</span>
+                  <strong className="stop-card__name">{selectedStop.name}</strong>
+                </div>
                 <div className="stop-card__actions">
-                  <span>#{selectedStop.id}</span>
+                  <span className="stop-card__stop-id">#{selectedStop.id}</span>
                   <button
                     type="button"
                     className="stop-card__close"
@@ -628,11 +631,23 @@ export function TransitDashboard() {
               ) : null}
               {stopPanel ? (
                 <>
-                  <p className="meta">
-                    Líneas: {selectedStopLineCodes || "sin información"}
-                  </p>
+                  <div className="stop-card__section stop-card__section--meta">
+                    <span className="stop-card__section-label">Líneas activas</span>
+                    <p className="meta stop-card__meta-text">
+                      {selectedStopLineCodes || "Sin informacion disponible"}
+                    </p>
+                  </div>
                   {stopPanel.arrivals.length > 0 ? (
-                    <ul className="arrival-inline-list">
+                    <div className="stop-card__section">
+                      <div className="stop-card__section-head">
+                        <span className="stop-card__section-label">
+                          Proximos tiempos
+                        </span>
+                        <span className="stop-card__section-caption">
+                          Hasta 4 llegadas visibles
+                        </span>
+                      </div>
+                      <ul className="arrival-inline-list">
                       {stopPanel.arrivals.slice(0, 4).map((arrival, index) => (
                         <li
                           key={`${arrival.lineId}-${arrival.destination}-${arrival.vehicleId ?? "na"}-${arrival.etaSeconds}-${index}`}
@@ -651,7 +666,8 @@ export function TransitDashboard() {
                           </button>
                         </li>
                       ))}
-                    </ul>
+                      </ul>
+                    </div>
                   ) : (
                     <div className="stop-card__message stop-card__message--empty">
                       <strong>No hay llegadas visibles ahora mismo</strong>
