@@ -19,7 +19,14 @@ import type {
 const REALTIME_POLL_MS = 10000;
 const THEME_STORAGE_KEY = "bus-burgos-theme";
 const FAVORITE_LINES_STORAGE_KEY = "bus-burgos-favorite-lines";
+const FAVORITE_STOPS_STORAGE_KEY = "bus-burgos-favorite-stops";
 const NEARBY_STOP_RADIUS_METERS = 1000;
+
+type FavoriteStop = {
+  id: string;
+  name: string;
+  lineId?: string | null;
+};
 
 const BusMap = dynamic(
   () => import("@/components/bus-map").then((module) => module.BusMap),
@@ -43,10 +50,12 @@ const BusMap = dynamic(
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [favoriteStopsPanelOpen, setFavoriteStopsPanelOpen] = useState(false);
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>([]);
+  const [favoriteStops, setFavoriteStops] = useState<FavoriteStop[]>([]);
   const [selectedLineId, setSelectedLineId] = useState<string>("");
   const [lineDetail, setLineDetail] = useState<LineDetail | null>(null);
   const [vehicles, setVehicles] = useState<VehiclePosition[]>([]);
@@ -65,6 +74,7 @@ export function TransitDashboard() {
   const [stopError, setStopError] = useState<string | null>(null);
   const geolocationWatchId = useRef<number | null>(null);
   const preserveSelectedStopRef = useRef<Stop | null>(null);
+  const pendingFavoriteStopIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -108,6 +118,39 @@ export function TransitDashboard() {
       return;
     }
 
+    try {
+      const savedFavoriteStops = window.localStorage.getItem(
+        FAVORITE_STOPS_STORAGE_KEY,
+      );
+      if (!savedFavoriteStops) {
+        return;
+      }
+
+      const parsedFavoriteStops = JSON.parse(savedFavoriteStops);
+      if (Array.isArray(parsedFavoriteStops)) {
+        setFavoriteStops(
+          parsedFavoriteStops.filter(
+            (value): value is FavoriteStop =>
+              typeof value === "object" &&
+              value !== null &&
+              typeof value.id === "string" &&
+              typeof value.name === "string" &&
+              (typeof value.lineId === "string" ||
+                value.lineId === null ||
+                value.lineId === undefined),
+          ),
+        );
+      }
+    } catch {
+      window.localStorage.removeItem(FAVORITE_STOPS_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
@@ -122,6 +165,17 @@ export function TransitDashboard() {
       JSON.stringify(favoriteLineIds),
     );
   }, [favoriteLineIds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      FAVORITE_STOPS_STORAGE_KEY,
+      JSON.stringify(favoriteStops),
+    );
+  }, [favoriteStops]);
 
   useEffect(() => {
     let isMounted = true;
@@ -338,6 +392,7 @@ export function TransitDashboard() {
     async function loadLineSnapshot() {
       setLineError(null);
       const stopToPreserve = preserveSelectedStopRef.current;
+      const pendingFavoriteStopId = pendingFavoriteStopIdRef.current;
       try {
         const [lineResponse, vehiclesResponse] = await Promise.all([
           fetch(`/api/lines/${selectedLineId}`),
@@ -359,7 +414,19 @@ export function TransitDashboard() {
 
         setLineDetail(lineData);
         setVehicles(vehiclesData.vehicles);
-        if (stopToPreserve) {
+        if (pendingFavoriteStopId) {
+          const favoriteStop = lineData.routes
+            .flatMap((route) => route.stops)
+            .find((stop) => stop.id === pendingFavoriteStopId);
+
+          if (favoriteStop) {
+            setSelectedStop(favoriteStop);
+            setStopPanel(null);
+          } else {
+            setSelectedStop(null);
+            setStopPanel(null);
+          }
+        } else if (stopToPreserve) {
           const stopStillBelongsToLine = lineData.routes.some((route) =>
             route.stops.some((stop) => stop.id === stopToPreserve.id),
           );
@@ -381,6 +448,7 @@ export function TransitDashboard() {
         setLineError(error instanceof Error ? error.message : "Error desconocido.");
       } finally {
         preserveSelectedStopRef.current = null;
+        pendingFavoriteStopIdRef.current = null;
       }
     }
 
@@ -469,6 +537,9 @@ export function TransitDashboard() {
     [favoriteLineIds, lines],
   );
   const isSelectedLineFavorite = favoriteLineIds.includes(selectedLineId);
+  const isSelectedStopFavorite = selectedStop
+    ? favoriteStops.some((stop) => stop.id === selectedStop.id)
+    : false;
   const nearbyStopIds = useMemo(
     () => new Set(nearbyStops.map((item) => item.stop.id)),
     [nearbyStops],
@@ -499,6 +570,38 @@ export function TransitDashboard() {
         ? current.filter((favoriteId) => favoriteId !== lineId)
         : [...current, lineId],
     );
+  }
+
+  function toggleFavoriteStop(stop: Stop) {
+    setFavoriteStops((current) =>
+      current.some((favoriteStop) => favoriteStop.id === stop.id)
+        ? current.filter((favoriteStop) => favoriteStop.id !== stop.id)
+        : [...current, { id: stop.id, name: stop.name, lineId: selectedLineId || null }],
+    );
+  }
+
+  function reopenFavoriteStop(favoriteStop: FavoriteStop) {
+    if (selectedStop?.id === favoriteStop.id) {
+      return;
+    }
+
+    const currentLineStop = routes
+      .flatMap((route) => route.stops)
+      .find((stop) => stop.id === favoriteStop.id);
+
+    if (currentLineStop) {
+      setSelectedStop(currentLineStop);
+      setStopPanel(null);
+      setStopError(null);
+      return;
+    }
+
+    if (favoriteStop.lineId && favoriteStop.lineId !== selectedLineId) {
+      pendingFavoriteStopIdRef.current = favoriteStop.id;
+      setStopPanel(null);
+      setStopError(null);
+      setSelectedLineId(favoriteStop.lineId);
+    }
   }
 
   return (
@@ -563,6 +666,27 @@ export function TransitDashboard() {
               }}
             >
               Cercanas
+            </button>
+            <button
+              type="button"
+              className={`theme-toggle__button theme-toggle__button--favorites${
+                favoriteStopsPanelOpen ? " is-active" : ""
+              }`}
+              aria-label={
+                favoriteStopsPanelOpen
+                  ? "Ocultar paradas favoritas"
+                  : "Mostrar paradas favoritas"
+              }
+              aria-expanded={favoriteStopsPanelOpen}
+              aria-controls="favorite-stops-panel"
+              title={
+                favoriteStopsPanelOpen
+                  ? "Ocultar paradas favoritas"
+                  : "Mostrar paradas favoritas"
+              }
+              onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
+            >
+              Favoritas
             </button>
           </div>
         </div>
@@ -635,6 +759,41 @@ export function TransitDashboard() {
             ) : null}
           </div>
         </div>
+
+        {favoriteStopsPanelOpen ? (
+          <div
+            id="favorite-stops-panel"
+            className="favorite-stop-strip favorite-stop-strip--panel"
+            aria-label="Paradas favoritas"
+          >
+            {favoriteStops.length > 0 ? (
+              <>
+                <span className="favorite-stop-strip__label">Paradas favoritas</span>
+                <div className="favorite-stop-strip__scroller">
+                  {favoriteStops.map((favoriteStop) => (
+                    <button
+                      key={favoriteStop.id}
+                      type="button"
+                      className={`favorite-stop-chip${
+                        favoriteStop.id === selectedStop?.id ? " is-active" : ""
+                      }`}
+                      onClick={() => reopenFavoriteStop(favoriteStop)}
+                      title={favoriteStop.name}
+                    >
+                      <span className="favorite-stop-chip__name">{favoriteStop.name}</span>
+                      <span className="favorite-stop-chip__meta">#{favoriteStop.id}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="favorite-stop-empty">
+                <strong>No hay paradas favoritas aún</strong>
+                <p>Guarda una parada desde su panel para tenerla aquí a mano.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
       </header>
 
       {lineError ? <p className="error-banner">{lineError}</p> : null}
@@ -718,6 +877,31 @@ export function TransitDashboard() {
                   <strong className="stop-card__name">{selectedStop.name}</strong>
                 </div>
                 <div className="stop-card__actions">
+                  <button
+                    type="button"
+                    className={`favorite-toggle favorite-toggle--panel${
+                      isSelectedStopFavorite ? " is-active" : ""
+                    }`}
+                    onClick={() => toggleFavoriteStop(selectedStop)}
+                    aria-pressed={isSelectedStopFavorite}
+                    aria-label={
+                      isSelectedStopFavorite
+                        ? "Quitar parada de favoritas"
+                        : "Marcar parada como favorita"
+                    }
+                    title={
+                      isSelectedStopFavorite
+                        ? "Quitar parada de favoritas"
+                        : "Guardar parada en favoritas"
+                    }
+                  >
+                    <span className="favorite-toggle__icon" aria-hidden="true">
+                      ★
+                    </span>
+                    <span className="favorite-toggle__label">
+                      {isSelectedStopFavorite ? "Favorita" : "Guardar"}
+                    </span>
+                  </button>
                   <span className="stop-card__stop-id">#{selectedStop.id}</span>
                   <button
                     type="button"
