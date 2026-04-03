@@ -204,6 +204,35 @@ export async function getLines(): Promise<Line[]> {
   });
 }
 
+export async function getLinesWithActivity(): Promise<Line[]> {
+  return withCache("lines-with-activity", REALTIME_TTL_MS, async () => {
+    const lines = await getLines();
+    const activityByLine = await Promise.all(
+      lines.map(async (line) => {
+        const { vehicles } = await getVehiclesByLine(line.id);
+        return {
+          lineId: line.id,
+          activeVehicleCount: vehicles.length,
+        };
+      }),
+    );
+
+    const activityIndex = new Map(
+      activityByLine.map((entry) => [entry.lineId, entry.activeVehicleCount]),
+    );
+
+    return lines.map((line) => {
+      const activeVehicleCount = activityIndex.get(line.id) ?? 0;
+
+      return {
+        ...line,
+        activeVehicleCount,
+        isActiveNow: activeVehicleCount > 0,
+      };
+    });
+  });
+}
+
 export async function getAllStops(): Promise<Stop[]> {
   return withCache("all-stops", ROUTE_TTL_MS, async () => {
     const rawStops = await fetchJson<RawStop[]>(

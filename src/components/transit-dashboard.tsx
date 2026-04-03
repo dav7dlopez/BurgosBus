@@ -62,6 +62,14 @@ function getRouteRenderKey(route: LineDetail["routes"][number]) {
   ].join("|");
 }
 
+function getLineOptionLabel(line: Line, isFavorite: boolean) {
+  const statusLabel =
+    line.isActiveNow === false ? "Sin servicio ahora" : "En servicio";
+  const favoritePrefix = isFavorite ? "★ " : "";
+
+  return `${favoritePrefix}${line.publicCode} ${line.displayName} · ${statusLabel}`;
+}
+
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -738,8 +746,10 @@ export function TransitDashboard() {
                 >
                   {lines.map((line) => (
                     <option key={line.id} value={line.id}>
-                      {favoriteLineIds.includes(line.id) ? "★ " : ""}
-                      {line.publicCode} {line.displayName}
+                      {getLineOptionLabel(
+                        line,
+                        favoriteLineIds.includes(line.id),
+                      )}
                     </option>
                   ))}
                 </select>
