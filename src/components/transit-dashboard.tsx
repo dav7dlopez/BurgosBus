@@ -31,6 +31,18 @@ type FavoriteStop = {
   lineId?: string | null;
 };
 
+function buildFavoriteStopPlaceholder(favoriteStop: FavoriteStop): Stop {
+  return {
+    id: favoriteStop.id,
+    code: null,
+    name: favoriteStop.name,
+    lat: 0,
+    lng: 0,
+    type: null,
+    source: "isaenext",
+  };
+}
+
 const BusMap = dynamic(
   () => import("@/components/bus-map").then((module) => module.BusMap),
   {
@@ -487,9 +499,6 @@ export function TransitDashboard() {
           if (favoriteStop) {
             setSelectedStop(favoriteStop);
             setStopPanel(null);
-          } else {
-            setSelectedStop(null);
-            setStopPanel(null);
           }
         } else if (stopToPreserve) {
           const stopStillBelongsToLine = lineData.routes.some((route) =>
@@ -679,22 +688,31 @@ export function TransitDashboard() {
       return;
     }
 
+    const fallbackStop = buildFavoriteStopPlaceholder(favoriteStop);
     const currentLineStop = routes
       .flatMap((route) => route.stops)
       .find((stop) => stop.id === favoriteStop.id);
 
+    setStopPanel(null);
+    setStopError(null);
+
     if (currentLineStop) {
       setSelectedStop(currentLineStop);
-      setStopPanel(null);
-      setStopError(null);
       return;
     }
 
-    if (favoriteStop.lineId && favoriteStop.lineId !== selectedLineId) {
+    setSelectedStop(fallbackStop);
+
+    if (
+      favoriteStop.lineId &&
+      favoriteStop.lineId !== selectedLineId &&
+      lines.some((line) => line.id === favoriteStop.lineId)
+    ) {
+      if (showActiveLinesOnly) {
+        setShowActiveLinesOnly(false);
+      }
+
       pendingFavoriteStopIdRef.current = favoriteStop.id;
-      setSelectedStop(null);
-      setStopPanel(null);
-      setStopError(null);
       setSelectedLineId(favoriteStop.lineId);
     }
   }
