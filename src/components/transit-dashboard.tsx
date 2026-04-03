@@ -18,6 +18,7 @@ import type {
 
 const REALTIME_POLL_MS = 10000;
 const THEME_STORAGE_KEY = "bus-burgos-theme";
+const LAST_SELECTED_LINE_STORAGE_KEY = "bus-burgos-last-selected-line";
 const FAVORITE_LINES_STORAGE_KEY = "bus-burgos-favorite-lines";
 const FAVORITE_STOPS_STORAGE_KEY = "bus-burgos-favorite-stops";
 const NEARBY_STOP_RADIUS_METERS = 1000;
@@ -47,6 +48,20 @@ const BusMap = dynamic(
   },
 );
 
+function getRouteRenderKey(route: LineDetail["routes"][number]) {
+  const firstPoint = route.path[0];
+  const lastPoint = route.path[route.path.length - 1];
+
+  return [
+    route.lineId,
+    route.routeId,
+    route.directionLabel,
+    route.isOutbound === null ? "na" : route.isOutbound ? "out" : "in",
+    firstPoint ? `${firstPoint.lat},${firstPoint.lng}` : "start-na",
+    lastPoint ? `${lastPoint.lat},${lastPoint.lng}` : "end-na",
+  ].join("|");
+}
+
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -73,6 +88,7 @@ export function TransitDashboard() {
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
   const geolocationWatchId = useRef<number | null>(null);
+  const lastSelectedLineIdRef = useRef<string | null>(null);
   const preserveSelectedStopRef = useRef<Stop | null>(null);
   const pendingFavoriteStopIdRef = useRef<string | null>(null);
 
@@ -90,6 +106,25 @@ export function TransitDashboard() {
 
     document.documentElement.dataset.theme = "light";
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const savedLineId = window.localStorage.getItem(LAST_SELECTED_LINE_STORAGE_KEY);
+    if (savedLineId) {
+      lastSelectedLineIdRef.current = savedLineId;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !selectedLineId) {
+      return;
+    }
+
+    window.localStorage.setItem(LAST_SELECTED_LINE_STORAGE_KEY, selectedLineId);
+  }, [selectedLineId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -193,7 +228,12 @@ export function TransitDashboard() {
         }
         setLines(data);
         if (data.length > 0) {
-          setSelectedLineId(data[0].id);
+          const savedLineId = lastSelectedLineIdRef.current;
+          const restoredLineId = savedLineId
+            ? data.find((line) => line.id === savedLineId)?.id
+            : null;
+
+          setSelectedLineId(restoredLineId ?? data[0].id);
         }
       } catch (error) {
         if (!isMounted) {
@@ -524,8 +564,9 @@ export function TransitDashboard() {
     theme === "dark" ? mapProviders.openFreeMapDark : mapProviders.openFreeMap;
   const routeSummaries = useMemo(
     () =>
-      routes.map((route) => ({
+      routes.map((route, index) => ({
         id: route.routeId,
+        renderKey: `${getRouteRenderKey(route)}|${index}`,
         label: route.directionLabel,
         color: route.colorHint,
       })),
@@ -814,7 +855,7 @@ export function TransitDashboard() {
             className={`route-legend${isMobileLegendOpen ? " is-open" : ""}`}
           >
             {routeSummaries.map((route) => (
-              <span key={route.id} className="route-pill">
+              <span key={route.renderKey} className="route-pill">
                 <span
                   className="route-pill__swatch"
                   style={{ backgroundColor: route.color }}

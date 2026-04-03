@@ -55,6 +55,20 @@ type StopMarkerData = Stop & {
 const MIN_STOP_ROUTE_OFFSET = 0.00003;
 const MAX_STOP_ROUTE_OFFSET = 0.000075;
 
+function getRouteRenderKey(route: RouteShape) {
+  const firstPoint = route.path[0];
+  const lastPoint = route.path[route.path.length - 1];
+
+  return [
+    route.lineId,
+    route.routeId,
+    route.directionLabel,
+    route.isOutbound === null ? "na" : route.isOutbound ? "out" : "in",
+    firstPoint ? `${firstPoint.lat},${firstPoint.lng}` : "start-na",
+    lastPoint ? `${lastPoint.lat},${lastPoint.lng}` : "end-na",
+  ].join("|");
+}
+
 function createStopIcon(
   colors: string[],
   isSelected: boolean,
@@ -198,7 +212,29 @@ function FitToRoutes({ routes }: { routes: RouteShape[] }) {
       points.map((point) => [point.lat, point.lng] as LatLngExpression),
     );
 
-    map.fitBounds(bounds, { padding: [40, 40] });
+    const latSpan = Math.abs(bounds.getNorth() - bounds.getSouth());
+    const lngSpan = Math.abs(bounds.getEast() - bounds.getWest());
+    const dominantSpan = Math.max(latSpan, lngSpan);
+    const mapSize = map.getSize();
+    const isCompactViewport = mapSize.x <= 720;
+
+    // Keep the selected line comfortably inside the visible map area, accounting
+    // for the route legend and stop panel overlays without over-zooming short lines.
+    const paddingTopLeft: [number, number] = isCompactViewport ? [24, 72] : [72, 72];
+    const paddingBottomRight: [number, number] = isCompactViewport ? [24, 24] : [48, 40];
+
+    let maxZoom = 17;
+    if (dominantSpan < 0.015) {
+      maxZoom = 15;
+    } else if (dominantSpan < 0.035) {
+      maxZoom = 16;
+    }
+
+    map.fitBounds(bounds, {
+      paddingTopLeft,
+      paddingBottomRight,
+      maxZoom,
+    });
   }, [map, routes]);
 
   return null;
@@ -562,36 +598,40 @@ export function BusMap({
         />
 
         <Pane name="routes" style={{ zIndex: 410 }}>
-          {routes.map((route) => (
-            <Fragment key={route.routeId}>
-              <Polyline
-                key={`${route.routeId}-shadow`}
-                positions={route.path.map(
-                  (point) => [point.lat, point.lng] as LatLngExpression,
-                )}
-                pathOptions={{
-                  color: "rgba(8, 12, 16, 0.34)",
-                  weight: 7,
-                  opacity: 0.72,
-                  lineCap: "round",
-                  lineJoin: "round",
-                }}
-              />
-              <Polyline
-                key={`${route.routeId}-main`}
-                positions={route.path.map(
-                  (point) => [point.lat, point.lng] as LatLngExpression,
-                )}
-                pathOptions={{
-                  color: route.colorHint,
-                  weight: 4.5,
-                  opacity: 0.9,
-                  lineCap: "round",
-                  lineJoin: "round",
-                }}
-              />
-            </Fragment>
-          ))}
+          {routes.map((route, index) => {
+            const routeRenderKey = `${getRouteRenderKey(route)}|${index}`;
+
+            return (
+              <Fragment key={routeRenderKey}>
+                <Polyline
+                  key={`${routeRenderKey}-shadow`}
+                  positions={route.path.map(
+                    (point) => [point.lat, point.lng] as LatLngExpression,
+                  )}
+                  pathOptions={{
+                    color: "rgba(8, 12, 16, 0.34)",
+                    weight: 7,
+                    opacity: 0.72,
+                    lineCap: "round",
+                    lineJoin: "round",
+                  }}
+                />
+                <Polyline
+                  key={`${routeRenderKey}-main`}
+                  positions={route.path.map(
+                    (point) => [point.lat, point.lng] as LatLngExpression,
+                  )}
+                  pathOptions={{
+                    color: route.colorHint,
+                    weight: 4.5,
+                    opacity: 0.9,
+                    lineCap: "round",
+                    lineJoin: "round",
+                  }}
+                />
+              </Fragment>
+            );
+          })}
         </Pane>
 
         <Pane name="stops" style={{ zIndex: 650 }}>
