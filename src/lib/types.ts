@@ -2,6 +2,8 @@ export type Line = {
   id: string;
   publicCode: string;
   displayName: string;
+  activeVehicleCount?: number;
+  isActiveNow?: boolean;
   source: "isaenext";
 };
 
