@@ -68,6 +68,7 @@ export function TransitDashboard() {
   const [favoriteStopsPanelOpen, setFavoriteStopsPanelOpen] = useState(false);
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
+  const [isNearbyPanelMinimized, setIsNearbyPanelMinimized] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>([]);
   const [favoriteStops, setFavoriteStops] = useState<FavoriteStop[]>([]);
@@ -421,6 +422,12 @@ export function TransitDashboard() {
       window.clearInterval(intervalId);
     };
   }, [nearbyModeEnabled, userLocation]);
+
+  useEffect(() => {
+    if (!nearbyModeEnabled) {
+      setIsNearbyPanelMinimized(false);
+    }
+  }, [nearbyModeEnabled]);
 
   useEffect(() => {
     if (!selectedLineId) {
@@ -887,11 +894,79 @@ export function TransitDashboard() {
               description="La app seguira funcionando con el mapa y las lineas, pero sin funciones basadas en tu posicion."
             />
           ) : nearbyModeEnabled && nearbyStops.length > 0 && !selectedStop ? (
-            <StatusCard
-              eyebrow="Paradas cercanas"
-              title={`${nearbyStops.length} paradas disponibles a tu alrededor`}
-              description="Pulsa cualquiera en el mapa para consultar sus lineas activas y los proximos tiempos de paso."
-            />
+            isNearbyPanelMinimized ? (
+              <button
+                type="button"
+                className="nearby-panel-toggle"
+                onClick={() => setIsNearbyPanelMinimized(false)}
+                aria-label="Mostrar panel de paradas cercanas"
+              >
+                <span className="nearby-panel-toggle__icon" aria-hidden="true">
+                  ◎
+                </span>
+                <span className="nearby-panel-toggle__content">
+                  <span className="nearby-panel-toggle__eyebrow">Paradas cercanas</span>
+                  <span className="nearby-panel-toggle__title">
+                    {nearbyStops.length} disponibles
+                  </span>
+                </span>
+              </button>
+            ) : (
+              <div className="stop-card stop-card--hint stop-card--state">
+                <div className="stop-card__header stop-card__header--compact">
+                  <div className="stop-card__title-block">
+                    <span className="stop-card__eyebrow">Paradas cercanas</span>
+                    <strong className="stop-card__title">
+                      {nearbyStops.length} paradas disponibles a tu alrededor
+                    </strong>
+                    <p className="stop-card__description">
+                      Consulta la distancia de cada parada y pulsa la que mejor te
+                      encaje para ver sus lineas activas y los proximos tiempos de
+                      paso.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="stop-card__collapse"
+                    onClick={() => setIsNearbyPanelMinimized(true)}
+                    aria-label="Minimizar panel de paradas cercanas"
+                    title="Minimizar panel"
+                  >
+                    <span className="stop-card__collapse-icon" aria-hidden="true">
+                      −
+                    </span>
+                    <span className="stop-card__collapse-label">Ocultar</span>
+                  </button>
+                </div>
+                <div className="nearby-stop-list" aria-label="Lista de paradas cercanas">
+                  {nearbyStops.slice(0, 4).map((item) => (
+                    <button
+                      key={item.stop.id}
+                      type="button"
+                      className="nearby-stop-list__item"
+                      onClick={() => {
+                        setStopPanel(null);
+                        setStopError(null);
+                        setSelectedStop(item.stop);
+                      }}
+                    >
+                      <span className="nearby-stop-list__main">
+                        <span className="nearby-stop-list__name">{item.stop.name}</span>
+                        <span className="nearby-stop-list__distance">
+                          {formatDistance(item.distanceMeters)}
+                        </span>
+                      </span>
+                      <span className="nearby-stop-list__meta">
+                        {item.lines
+                          .slice(0, 3)
+                          .map((line) => line.publicCode)
+                          .join(" · ")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
           ) : nearbyModeEnabled && nearbyStopsLoading && !selectedStop ? (
             <StatusCard
               eyebrow="Paradas cercanas"
@@ -1100,4 +1175,13 @@ function formatEta(seconds: number) {
   }
 
   return `${minutes} min ${remainder}s`;
+}
+
+function formatDistance(distanceMeters: number) {
+  if (distanceMeters < 1000) {
+    return `${Math.round(distanceMeters)} m`;
+  }
+
+  const kilometers = distanceMeters / 1000;
+  return `${kilometers.toFixed(kilometers >= 10 ? 0 : 1)} km`;
 }
