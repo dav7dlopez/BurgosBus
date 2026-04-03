@@ -735,7 +735,7 @@ export function TransitDashboard() {
               }
               onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
             >
-              Favoritas
+              Paradas Favoritas
             </button>
           </div>
         </div>
