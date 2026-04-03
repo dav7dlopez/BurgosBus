@@ -663,24 +663,36 @@ export function TransitDashboard() {
           </div>
 
           <div className="theme-toggle" aria-label="Selector de tema">
-            <button
-              type="button"
-              className={`theme-toggle__button${theme === "light" ? " is-active" : ""}`}
-              aria-label="Activar modo claro"
-              title="Modo claro"
-              onClick={() => setTheme("light")}
+            <div
+              className="theme-switch"
+              data-active-theme={theme}
+              role="group"
+              aria-label="Selector de tema visual"
             >
-              Claro
-            </button>
-            <button
-              type="button"
-              className={`theme-toggle__button${theme === "dark" ? " is-active" : ""}`}
-              aria-label="Activar modo oscuro"
-              title="Modo oscuro"
-              onClick={() => setTheme("dark")}
-            >
-              Oscuro
-            </button>
+              <span className="theme-switch__thumb" aria-hidden="true" />
+              <button
+                type="button"
+                className={`theme-toggle__button theme-toggle__button--mode${
+                  theme === "light" ? " is-active" : ""
+                }`}
+                aria-label="Activar modo claro"
+                title="Modo claro"
+                onClick={() => setTheme("light")}
+              >
+                Claro
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle__button theme-toggle__button--mode${
+                  theme === "dark" ? " is-active" : ""
+                }`}
+                aria-label="Activar modo oscuro"
+                title="Modo oscuro"
+                onClick={() => setTheme("dark")}
+              >
+                Oscuro
+              </button>
+            </div>
             <button
               type="button"
               className={`theme-toggle__button theme-toggle__button--gps${locationEnabled ? " is-active" : " is-off"}`}
