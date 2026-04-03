@@ -271,38 +271,13 @@ export function TransitDashboard() {
         return undefined;
       }
 
+      if (geolocationWatchId.current != null) {
+        return geolocationWatchId.current;
+      }
+
       setGeolocationStatus("requesting");
 
-      const startWatching = () => {
-        if (geolocationWatchId.current != null) {
-          navigator.geolocation.clearWatch(geolocationWatchId.current);
-        }
-
-        geolocationWatchId.current = navigator.geolocation.watchPosition(
-          (position) => {
-            setUserLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-            });
-            setGeolocationStatus("ready");
-          },
-          (error) => {
-            if (error.code === error.PERMISSION_DENIED) {
-              setGeolocationStatus("denied");
-            } else {
-              setGeolocationStatus("error");
-            }
-          },
-          {
-            enableHighAccuracy: true,
-            maximumAge: REALTIME_POLL_MS,
-            timeout: 10000,
-          },
-        );
-      };
-
-      navigator.geolocation.getCurrentPosition(
+      geolocationWatchId.current = navigator.geolocation.watchPosition(
         (position) => {
           setUserLocation({
             lat: position.coords.latitude,
@@ -310,7 +285,6 @@ export function TransitDashboard() {
             accuracy: position.coords.accuracy,
           });
           setGeolocationStatus("ready");
-          startWatching();
         },
         (error) => {
           if (error.code === error.PERMISSION_DENIED) {
