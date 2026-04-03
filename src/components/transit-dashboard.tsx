@@ -64,7 +64,7 @@ function getRouteRenderKey(route: LineDetail["routes"][number]) {
 
 function getLineOptionLabel(line: Line, isFavorite: boolean) {
   const statusLabel =
-    line.isActiveNow === false ? "Sin servicio ahora" : "En servicio";
+    line.isActiveNow === false ? "[Sin servicio ahora]" : "[En servicio]";
   const favoritePrefix = isFavorite ? "★ " : "";
 
   return `${favoritePrefix}${line.publicCode} ${line.displayName} · ${statusLabel}`;
