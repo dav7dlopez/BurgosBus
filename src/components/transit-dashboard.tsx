@@ -21,6 +21,8 @@ const THEME_STORAGE_KEY = "bus-burgos-theme";
 const LAST_SELECTED_LINE_STORAGE_KEY = "bus-burgos-last-selected-line";
 const FAVORITE_LINES_STORAGE_KEY = "bus-burgos-favorite-lines";
 const FAVORITE_STOPS_STORAGE_KEY = "bus-burgos-favorite-stops";
+const DEFAULT_INFO_PANEL_MINIMIZED_STORAGE_KEY =
+  "bus-burgos-default-info-panel-minimized";
 const NEARBY_STOP_RADIUS_METERS = 1000;
 
 type FavoriteStop = {
@@ -77,6 +79,9 @@ export function TransitDashboard() {
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [isNearbyPanelMinimized, setIsNearbyPanelMinimized] = useState(false);
+  const [isDefaultInfoPanelMinimized, setIsDefaultInfoPanelMinimized] =
+    useState(false);
+  const [showActiveLinesOnly, setShowActiveLinesOnly] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>([]);
   const [favoriteStops, setFavoriteStops] = useState<FavoriteStop[]>([]);
@@ -98,6 +103,7 @@ export function TransitDashboard() {
   const [stopError, setStopError] = useState<string | null>(null);
   const geolocationWatchId = useRef<number | null>(null);
   const lastSelectedLineIdRef = useRef<string | null>(null);
+  const previousUnfilteredLineIdRef = useRef<string | null>(null);
   const preserveSelectedStopRef = useRef<Stop | null>(null);
   const pendingFavoriteStopIdRef = useRef<string | null>(null);
 
@@ -115,6 +121,31 @@ export function TransitDashboard() {
 
     document.documentElement.dataset.theme = "light";
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const savedState = window.localStorage.getItem(
+      DEFAULT_INFO_PANEL_MINIMIZED_STORAGE_KEY,
+    );
+
+    if (savedState === "true") {
+      setIsDefaultInfoPanelMinimized(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      DEFAULT_INFO_PANEL_MINIMIZED_STORAGE_KEY,
+      String(isDefaultInfoPanelMinimized),
+    );
+  }, [isDefaultInfoPanelMinimized]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -413,6 +444,11 @@ export function TransitDashboard() {
 
   useEffect(() => {
     if (!selectedLineId) {
+      setLineDetail(null);
+      setVehicles([]);
+      setSelectedStop(null);
+      setStopPanel(null);
+      setLineError(null);
       return;
     }
 
@@ -566,6 +602,13 @@ export function TransitDashboard() {
     () => lines.filter((line) => favoriteLineIds.includes(line.id)),
     [favoriteLineIds, lines],
   );
+  const visibleLines = useMemo(
+    () =>
+      showActiveLinesOnly
+        ? lines.filter((line) => line.isActiveNow)
+        : lines,
+    [lines, showActiveLinesOnly],
+  );
   const isSelectedLineFavorite = favoriteLineIds.includes(selectedLineId);
   const isSelectedStopFavorite = selectedStop
     ? favoriteStops.some((stop) => stop.id === selectedStop.id)
@@ -584,6 +627,27 @@ export function TransitDashboard() {
       current.filter((lineId) => lines.some((line) => line.id === lineId)),
     );
   }, [lines]);
+
+  useEffect(() => {
+    if (!showActiveLinesOnly) {
+      return;
+    }
+
+    if (visibleLines.length === 0) {
+      if (selectedLineId) {
+        setSelectedLineId("");
+      }
+      return;
+    }
+
+    const selectedLineStillVisible = visibleLines.some(
+      (line) => line.id === selectedLineId,
+    );
+
+    if (!selectedLineStillVisible) {
+      setSelectedLineId(visibleLines[0].id);
+    }
+  }, [selectedLineId, showActiveLinesOnly, visibleLines]);
 
   function activateLineFromStop(lineId: string) {
     if (!selectedStop || lineId === selectedLineId) {
@@ -633,6 +697,22 @@ export function TransitDashboard() {
       setStopError(null);
       setSelectedLineId(favoriteStop.lineId);
     }
+  }
+
+  function toggleShowActiveLinesOnly() {
+    if (showActiveLinesOnly) {
+      setShowActiveLinesOnly(false);
+
+      const previousLineId = previousUnfilteredLineIdRef.current;
+      if (previousLineId && lines.some((line) => line.id === previousLineId)) {
+        setSelectedLineId(previousLineId);
+      }
+
+      return;
+    }
+
+    previousUnfilteredLineIdRef.current = selectedLineId || null;
+    setShowActiveLinesOnly(true);
   }
 
   return (
@@ -737,26 +817,11 @@ export function TransitDashboard() {
         <div className="topbar-controls">
           <div className="line-picker">
             <div className="line-picker__row">
-              <label className="field field--compact">
-                <span>Linea activa</span>
-                <select
-                  value={selectedLineId}
-                  onChange={(event) => setSelectedLineId(event.target.value)}
-                  disabled={loading || lines.length === 0}
-                >
-                  {lines.map((line) => (
-                    <option key={line.id} value={line.id}>
-                      {getLineOptionLabel(
-                        line,
-                        favoriteLineIds.includes(line.id),
-                      )}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <button
                 type="button"
-                className={`favorite-toggle${isSelectedLineFavorite ? " is-active" : ""}`}
+                className={`favorite-toggle line-picker__favorite${
+                  isSelectedLineFavorite ? " is-active" : ""
+                }`}
                 onClick={() => toggleFavoriteLine(selectedLineId)}
                 disabled={!selectedLineId}
                 aria-pressed={isSelectedLineFavorite}
@@ -777,6 +842,49 @@ export function TransitDashboard() {
                 <span className="favorite-toggle__label">
                   {isSelectedLineFavorite ? "Favorita" : "Guardar"}
                 </span>
+              </button>
+              <label className="field field--compact">
+                <span>Linea activa</span>
+                <select
+                  value={selectedLineId}
+                  onChange={(event) => setSelectedLineId(event.target.value)}
+                  disabled={loading || visibleLines.length === 0}
+                >
+                  {visibleLines.length > 0 ? (
+                    visibleLines.map((line) => (
+                      <option key={line.id} value={line.id}>
+                        {getLineOptionLabel(
+                          line,
+                          favoriteLineIds.includes(line.id),
+                        )}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No hay lineas en servicio ahora
+                    </option>
+                  )}
+                </select>
+              </label>
+              <button
+                type="button"
+                className={`favorite-toggle line-filter-toggle${
+                  showActiveLinesOnly ? " is-active" : ""
+                }`}
+                onClick={toggleShowActiveLinesOnly}
+                aria-pressed={showActiveLinesOnly}
+                aria-label={
+                  showActiveLinesOnly
+                    ? "Mostrar todas las lineas"
+                    : "Mostrar solo lineas en servicio"
+                }
+                title={
+                  showActiveLinesOnly
+                    ? "Mostrar todas las lineas"
+                    : "Mostrar solo lineas en servicio"
+                }
+              >
+                <span className="favorite-toggle__label">Ver activas</span>
               </button>
             </div>
 
@@ -1097,11 +1205,37 @@ export function TransitDashboard() {
                 </div>
               )}
             </div>
+          ) : isDefaultInfoPanelMinimized ? (
+            <button
+              type="button"
+              className="info-panel-toggle"
+              onClick={() => setIsDefaultInfoPanelMinimized(false)}
+              aria-label="Mostrar panel informativo del mapa"
+              title="Mostrar informacion"
+            >
+              <span className="info-panel-toggle__icon" aria-hidden="true">
+                i
+              </span>
+            </button>
           ) : (
             <StatusCard
               eyebrow="Detalle de parada"
               title="Selecciona una parada"
               description="Pulsa una parada del mapa para ver sus lineas activas y los proximos tiempos de paso."
+              action={
+                <button
+                  type="button"
+                  className="stop-card__collapse"
+                  onClick={() => setIsDefaultInfoPanelMinimized(true)}
+                  aria-label="Minimizar panel informativo del mapa"
+                  title="Minimizar panel"
+                >
+                  <span className="stop-card__collapse-icon" aria-hidden="true">
+                    −
+                  </span>
+                  <span className="stop-card__collapse-label">Ocultar</span>
+                </button>
+              }
             />
           )}
         </div>
@@ -1139,6 +1273,7 @@ type StatusCardProps = {
   title: string;
   tone?: "neutral" | "loading";
   children?: ReactNode;
+  action?: ReactNode;
 };
 
 function StatusCard({
@@ -1147,12 +1282,26 @@ function StatusCard({
   title,
   tone = "neutral",
   children,
+  action,
 }: StatusCardProps) {
   return (
     <div className={`stop-card stop-card--hint stop-card--state stop-card--${tone}`}>
-      {eyebrow ? <span className="stop-card__eyebrow">{eyebrow}</span> : null}
-      <strong className="stop-card__title">{title}</strong>
-      <p className="stop-card__description">{description}</p>
+      {action ? (
+        <div className="stop-card__header stop-card__header--compact">
+          <div className="stop-card__title-block">
+            {eyebrow ? <span className="stop-card__eyebrow">{eyebrow}</span> : null}
+            <strong className="stop-card__title">{title}</strong>
+            <p className="stop-card__description">{description}</p>
+          </div>
+          {action}
+        </div>
+      ) : (
+        <>
+          {eyebrow ? <span className="stop-card__eyebrow">{eyebrow}</span> : null}
+          <strong className="stop-card__title">{title}</strong>
+          <p className="stop-card__description">{description}</p>
+        </>
+      )}
       {children}
     </div>
   );
