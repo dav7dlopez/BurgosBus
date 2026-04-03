@@ -598,6 +598,7 @@ export function TransitDashboard() {
 
     if (favoriteStop.lineId && favoriteStop.lineId !== selectedLineId) {
       pendingFavoriteStopIdRef.current = favoriteStop.id;
+      setSelectedStop(null);
       setStopPanel(null);
       setStopError(null);
       setSelectedLineId(favoriteStop.lineId);
