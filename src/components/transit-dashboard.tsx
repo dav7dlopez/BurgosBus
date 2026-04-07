@@ -91,6 +91,7 @@ export function TransitDashboard() {
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [isNearbyPanelMinimized, setIsNearbyPanelMinimized] = useState(false);
+  const [isNearbyListExpanded, setIsNearbyListExpanded] = useState(false);
   const [isDefaultInfoPanelMinimized, setIsDefaultInfoPanelMinimized] =
     useState(false);
   const [showActiveLinesOnly, setShowActiveLinesOnly] = useState(false);
@@ -451,6 +452,7 @@ export function TransitDashboard() {
   useEffect(() => {
     if (!nearbyModeEnabled) {
       setIsNearbyPanelMinimized(false);
+      setIsNearbyListExpanded(false);
     }
   }, [nearbyModeEnabled]);
 
@@ -625,6 +627,10 @@ export function TransitDashboard() {
   const nearbyStopIds = useMemo(
     () => new Set(nearbyStops.map((item) => item.stop.id)),
     [nearbyStops],
+  );
+  const visibleNearbyStops = useMemo(
+    () => (isNearbyListExpanded ? nearbyStops : nearbyStops.slice(0, 4)),
+    [isNearbyListExpanded, nearbyStops],
   );
 
   useEffect(() => {
@@ -1050,7 +1056,10 @@ export function TransitDashboard() {
                   <button
                     type="button"
                     className="stop-card__collapse"
-                    onClick={() => setIsNearbyPanelMinimized(true)}
+                    onClick={() => {
+                      setIsNearbyPanelMinimized(true);
+                      setIsNearbyListExpanded(false);
+                    }}
                     aria-label="Minimizar panel de paradas cercanas"
                     title="Minimizar panel"
                   >
@@ -1060,8 +1069,13 @@ export function TransitDashboard() {
                     <span className="stop-card__collapse-label">Ocultar</span>
                   </button>
                 </div>
-                <div className="nearby-stop-list" aria-label="Lista de paradas cercanas">
-                  {nearbyStops.slice(0, 4).map((item) => (
+                <div
+                  className={`nearby-stop-list${
+                    isNearbyListExpanded ? " nearby-stop-list--expanded" : ""
+                  }`}
+                  aria-label="Lista de paradas cercanas"
+                >
+                  {visibleNearbyStops.map((item) => (
                     <button
                       key={item.stop.id}
                       type="button"
@@ -1087,6 +1101,22 @@ export function TransitDashboard() {
                     </button>
                   ))}
                 </div>
+                {nearbyStops.length > 4 ? (
+                  <div className="nearby-stop-list__footer">
+                    <button
+                      type="button"
+                      className="nearby-stop-list__toggle"
+                      onClick={() =>
+                        setIsNearbyListExpanded((current) => !current)
+                      }
+                      aria-expanded={isNearbyListExpanded}
+                    >
+                      {isNearbyListExpanded
+                        ? "Ver menos"
+                        : `Ver más (${nearbyStops.length - 4} más)`}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )
           ) : nearbyModeEnabled && nearbyStopsLoading && !selectedStop ? (
