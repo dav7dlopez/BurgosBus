@@ -749,6 +749,12 @@ a {
   margin-top: 12px;
 }
 
+.nearby-stop-list--expanded {
+  max-height: min(42vh, 360px);
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
 .nearby-stop-list__item {
   width: 100%;
   padding: 12px 14px;
@@ -805,6 +811,43 @@ a {
   font-size: 0.82rem;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.nearby-stop-list__footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.nearby-stop-list__toggle {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-alt) 86%, transparent);
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.nearby-stop-list__toggle:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  box-shadow: 0 8px 16px rgba(17, 33, 45, 0.06);
+  transform: translateY(-1px);
+}
+
+.nearby-stop-list__toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, white 40%);
+  outline-offset: 2px;
 }
 
 .nearby-panel-toggle {
@@ -1660,6 +1703,10 @@ html[data-theme="dark"] .fallback-panel {
 
   .nearby-stop-list__name {
     font-size: 0.94rem;
+  }
+
+  .nearby-stop-list--expanded {
+    max-height: min(38vh, 300px);
   }
 
   .nearby-panel-toggle {
