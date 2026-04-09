@@ -45,6 +45,8 @@ type BusMapProps = {
   focusUserLocationSignal?: number;
   focusNearbyStopsSignal?: number;
   onRequestUserLocation?: () => void;
+  liveTrackingEnabled?: boolean;
+  liveTrackingRouteId?: string | null;
 };
 
 type StopMarkerData = Stop & {
@@ -94,7 +96,11 @@ function createStopIcon(
   });
 }
 
-function createBusIcon(color: string, rotationDeg: number): DivIcon {
+function createBusIcon(
+  color: string,
+  rotationDeg: number,
+  liveTrackingEnabled: boolean,
+): DivIcon {
   const normalizedHeading = ((rotationDeg % 360) + 360) % 360;
   const directionFlip = normalizedHeading > 90 && normalizedHeading < 270 ? -1 : 1;
   const busIcon = renderToStaticMarkup(
@@ -110,7 +116,7 @@ function createBusIcon(color: string, rotationDeg: number): DivIcon {
     iconAnchor: [25, 16],
     popupAnchor: [0, -16],
     html: `
-      <span class="bus-vehicle-icon" style="--route-color:${color}; --direction-flip:${directionFlip};">
+      <span class="bus-vehicle-icon${liveTrackingEnabled ? " is-live" : ""}" style="--route-color:${color}; --direction-flip:${directionFlip};">
         <span class="bus-vehicle-icon__shell">
           <span class="bus-vehicle-icon__bus">${busIcon}</span>
           <span class="bus-vehicle-icon__direction">${directionIcon}</span>
@@ -528,14 +534,30 @@ export function BusMap({
   focusUserLocationSignal,
   focusNearbyStopsSignal,
   onRequestUserLocation,
+  liveTrackingEnabled = false,
+  liveTrackingRouteId = null,
 }: BusMapProps) {
+  const visibleRoutes = useMemo(
+    () =>
+      liveTrackingEnabled && liveTrackingRouteId
+        ? routes.filter((route) => route.routeId === liveTrackingRouteId)
+        : routes,
+    [liveTrackingEnabled, liveTrackingRouteId, routes],
+  );
+  const visibleVehicles = useMemo(
+    () =>
+      liveTrackingEnabled && liveTrackingRouteId
+        ? vehicles.filter((vehicle) => vehicle.routeId === liveTrackingRouteId)
+        : vehicles,
+    [liveTrackingEnabled, liveTrackingRouteId, vehicles],
+  );
   const stops = useMemo(
-    () => mergeNearbyStops(dedupeStops(routes), nearbyStops),
-    [nearbyStops, routes],
+    () => mergeNearbyStops(dedupeStops(visibleRoutes), nearbyStops),
+    [nearbyStops, visibleRoutes],
   );
   const routesById = useMemo(
-    () => new Map(routes.map((route) => [route.routeId, route])),
-    [routes],
+    () => new Map(visibleRoutes.map((route) => [route.routeId, route])),
+    [visibleRoutes],
   );
   const positionedStops = useMemo(
     () =>
@@ -555,7 +577,7 @@ export function BusMap({
   );
   const positionedVehicles = useMemo(
     () =>
-      vehicles.map((vehicle) => {
+      visibleVehicles.map((vehicle) => {
         const route = routesById.get(vehicle.routeId ?? "");
         const placement = getVehiclePlacement(vehicle, route);
 
@@ -567,7 +589,7 @@ export function BusMap({
           routeColor: route?.colorHint ?? "#dc2626",
         };
       }),
-    [routesById, vehicles],
+    [routesById, visibleVehicles],
   );
 
   return (
@@ -581,7 +603,7 @@ export function BusMap({
         className="leaflet-map"
       >
         <OpenFreeMapLayer provider={provider} />
-        <FitToRoutes routes={routes} />
+        <FitToRoutes routes={visibleRoutes} />
         <FocusUserLocation
           userLocation={userLocation}
           signal={focusUserLocationSignal}
@@ -598,7 +620,7 @@ export function BusMap({
         />
 
         <Pane name="routes" style={{ zIndex: 410 }}>
-          {routes.map((route, index) => {
+          {visibleRoutes.map((route, index) => {
             const routeRenderKey = `${getRouteRenderKey(route)}|${index}`;
 
             return (
@@ -656,7 +678,11 @@ export function BusMap({
             <Marker
               key={vehicle.vehicleId}
               position={[vehicle.markerLat, vehicle.markerLng]}
-              icon={createBusIcon(vehicle.routeColor, vehicle.markerHeading)}
+              icon={createBusIcon(
+                vehicle.routeColor,
+                vehicle.markerHeading,
+                liveTrackingEnabled,
+              )}
             />
           ))}
         </Pane>
