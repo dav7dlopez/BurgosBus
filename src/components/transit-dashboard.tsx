@@ -95,6 +95,8 @@ export function TransitDashboard() {
   const [isDefaultInfoPanelMinimized, setIsDefaultInfoPanelMinimized] =
     useState(false);
   const [showActiveLinesOnly, setShowActiveLinesOnly] = useState(false);
+  const [isLiveTrackingEnabled, setIsLiveTrackingEnabled] = useState(false);
+  const [liveTrackingRouteId, setLiveTrackingRouteId] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>([]);
   const [favoriteStops, setFavoriteStops] = useState<FavoriteStop[]>([]);
@@ -613,6 +615,30 @@ export function TransitDashboard() {
     () => lines.filter((line) => favoriteLineIds.includes(line.id)),
     [favoriteLineIds, lines],
   );
+  const selectedLine = useMemo(
+    () => lines.find((line) => line.id === selectedLineId) ?? null,
+    [lines, selectedLineId],
+  );
+  const canFilterLiveTrackingByRoute = useMemo(() => {
+    if (routes.length <= 1 || vehicles.length === 0) {
+      return false;
+    }
+
+    const routeIds = new Set(routes.map((route) => route.routeId));
+
+    return vehicles.every(
+      (vehicle) => vehicle.routeId !== null && routeIds.has(vehicle.routeId),
+    );
+  }, [routes, vehicles]);
+  const liveTrackingRouteOptions = useMemo(
+    () =>
+      canFilterLiveTrackingByRoute
+        ? routeSummaries.filter((summary) =>
+            vehicles.some((vehicle) => vehicle.routeId === summary.id),
+          )
+        : [],
+    [canFilterLiveTrackingByRoute, routeSummaries, vehicles],
+  );
   const visibleLines = useMemo(
     () =>
       showActiveLinesOnly
@@ -642,6 +668,36 @@ export function TransitDashboard() {
       current.filter((lineId) => lines.some((line) => line.id === lineId)),
     );
   }, [lines]);
+
+  useEffect(() => {
+    if (!selectedLineId) {
+      setIsLiveTrackingEnabled(false);
+      setLiveTrackingRouteId(null);
+    }
+  }, [selectedLineId]);
+
+  useEffect(() => {
+    if (!isLiveTrackingEnabled || !canFilterLiveTrackingByRoute) {
+      if (liveTrackingRouteId !== null) {
+        setLiveTrackingRouteId(null);
+      }
+      return;
+    }
+
+    if (
+      liveTrackingRouteId &&
+      liveTrackingRouteOptions.some((route) => route.id === liveTrackingRouteId)
+    ) {
+      return;
+    }
+
+    setLiveTrackingRouteId(liveTrackingRouteOptions[0]?.id ?? null);
+  }, [
+    canFilterLiveTrackingByRoute,
+    isLiveTrackingEnabled,
+    liveTrackingRouteId,
+    liveTrackingRouteOptions,
+  ]);
 
   useEffect(() => {
     if (!showActiveLinesOnly) {
@@ -912,6 +968,76 @@ export function TransitDashboard() {
               </button>
             </div>
 
+            {selectedLine ? (
+              <div className="line-picker__live">
+                <button
+                  type="button"
+                  className={`favorite-toggle live-tracking-toggle${
+                    isLiveTrackingEnabled ? " is-active" : ""
+                  }`}
+                  onClick={() => {
+                    setIsLiveTrackingEnabled((current) => {
+                      const nextValue = !current;
+                      if (!nextValue) {
+                        setLiveTrackingRouteId(null);
+                      }
+                      return nextValue;
+                    });
+                  }}
+                  aria-pressed={isLiveTrackingEnabled}
+                  aria-label={
+                    isLiveTrackingEnabled
+                      ? "Desactivar seguimiento en vivo"
+                      : "Activar seguimiento en vivo"
+                  }
+                  title={
+                    isLiveTrackingEnabled
+                      ? "Desactivar seguimiento en vivo"
+                      : "Activar seguimiento en vivo"
+                  }
+                >
+                  <span className="favorite-toggle__label">
+                    Seguimiento en vivo
+                  </span>
+                </button>
+                <span className="line-picker__live-meta">
+                  {vehicles.length}{" "}
+                  {vehicles.length === 1
+                    ? "vehículo"
+                    : "vehículos"} visibles
+                </span>
+              </div>
+            ) : null}
+
+            {isLiveTrackingEnabled && canFilterLiveTrackingByRoute ? (
+              <div
+                className="live-tracking-route-picker"
+                aria-label="Filtrar seguimiento en vivo por recorrido"
+              >
+                <button
+                  type="button"
+                  className={`favorite-line-chip${
+                    liveTrackingRouteId === null ? " is-active" : ""
+                  }`}
+                  onClick={() => setLiveTrackingRouteId(null)}
+                >
+                  Línea completa
+                </button>
+                {liveTrackingRouteOptions.map((route) => (
+                  <button
+                    key={route.id}
+                    type="button"
+                    className={`favorite-line-chip${
+                      liveTrackingRouteId === route.id ? " is-active" : ""
+                    }`}
+                    onClick={() => setLiveTrackingRouteId(route.id)}
+                  >
+                    {route.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             {favoriteLines.length > 0 ? (
               <div className="favorite-strip" aria-label="Lineas favoritas">
                 <span className="favorite-strip__label">Favoritas</span>
@@ -977,6 +1103,19 @@ export function TransitDashboard() {
 
       <section className="map-stage">
         <div className="map-overlay map-overlay--top">
+          {isLiveTrackingEnabled && selectedLine ? (
+            <div className="live-tracking-pill" aria-live="polite">
+              <span className="live-tracking-pill__eyebrow">
+                Seguimiento en vivo
+              </span>
+              <strong className="live-tracking-pill__title">
+                {vehicles.length}{" "}
+                {vehicles.length === 1
+                  ? "vehículo"
+                  : "vehículos"}
+              </strong>
+            </div>
+          ) : null}
           <button
             type="button"
             className={`legend-toggle${isMobileLegendOpen ? " is-open" : ""}`}
@@ -1308,6 +1447,12 @@ export function TransitDashboard() {
               requestUserLocation();
             }}
             provider={activeMapProvider}
+            liveTrackingEnabled={isLiveTrackingEnabled}
+            liveTrackingRouteId={
+              isLiveTrackingEnabled && canFilterLiveTrackingByRoute
+                ? liveTrackingRouteId
+                : null
+            }
           />
         </div>
       </section>
