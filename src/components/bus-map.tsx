@@ -16,6 +16,7 @@ import {
   MapContainer,
   Marker,
   Pane,
+  Popup,
   Polyline,
   useMap,
 } from "react-leaflet";
@@ -47,6 +48,8 @@ type BusMapProps = {
   onRequestUserLocation?: () => void;
   liveTrackingEnabled?: boolean;
   liveTrackingRouteId?: string | null;
+  followedVehicleId?: string | null;
+  onFollowVehicle?: (vehicle: VehiclePosition) => void;
 };
 
 type StopMarkerData = Stop & {
@@ -100,6 +103,7 @@ function createBusIcon(
   color: string,
   rotationDeg: number,
   liveTrackingEnabled: boolean,
+  isFollowed: boolean,
 ): DivIcon {
   const normalizedHeading = ((rotationDeg % 360) + 360) % 360;
   const directionFlip = normalizedHeading > 90 && normalizedHeading < 270 ? -1 : 1;
@@ -116,7 +120,9 @@ function createBusIcon(
     iconAnchor: [25, 16],
     popupAnchor: [0, -16],
     html: `
-      <span class="bus-vehicle-icon${liveTrackingEnabled ? " is-live" : ""}" style="--route-color:${color}; --direction-flip:${directionFlip};">
+      <span class="bus-vehicle-icon${liveTrackingEnabled ? " is-live" : ""}${
+        isFollowed ? " is-followed" : ""
+      }" style="--route-color:${color}; --direction-flip:${directionFlip};">
         <span class="bus-vehicle-icon__shell">
           <span class="bus-vehicle-icon__bus">${busIcon}</span>
           <span class="bus-vehicle-icon__direction">${directionIcon}</span>
@@ -302,6 +308,72 @@ function FocusNearbyStops({
 
     map.fitBounds(bounds, { padding: [48, 48], maxZoom: 17 });
   }, [map, nearbyStops, signal, userLocation]);
+
+  return null;
+}
+
+function FocusFollowedVehicle({
+  vehicle,
+  followedVehicleId,
+}: {
+  vehicle?: { markerLat: number; markerLng: number } | null;
+  followedVehicleId?: string | null;
+}) {
+  const map = useMap();
+  const lastFocusedVehicleIdRef = useRef<string | null>(null);
+  const lastHandledPositionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!followedVehicleId || !vehicle) {
+      lastFocusedVehicleIdRef.current = followedVehicleId ?? null;
+      lastHandledPositionRef.current = null;
+      return;
+    }
+
+    const nextPositionKey = `${vehicle.markerLat.toFixed(6)},${vehicle.markerLng.toFixed(6)}`;
+    const vehicleLatLng = L.latLng(vehicle.markerLat, vehicle.markerLng);
+    const currentCenter = map.getCenter();
+
+    if (lastFocusedVehicleIdRef.current !== followedVehicleId) {
+      lastFocusedVehicleIdRef.current = followedVehicleId;
+      lastHandledPositionRef.current = nextPositionKey;
+      const targetZoom = Math.min(
+        map.getMaxZoom(),
+        Math.max(map.getZoom(), 16.8),
+      );
+
+      map.flyTo([vehicle.markerLat, vehicle.markerLng], targetZoom, {
+        duration: 0.75,
+        easeLinearity: 0.25,
+      });
+      return;
+    }
+
+    if (lastHandledPositionRef.current === nextPositionKey) {
+      return;
+    }
+
+    lastHandledPositionRef.current = nextPositionKey;
+
+    const centerPoint = map.latLngToContainerPoint(currentCenter);
+    const vehiclePoint = map.latLngToContainerPoint(vehicleLatLng);
+    const pixelDelta = centerPoint.distanceTo(vehiclePoint);
+    const mapSize = map.getSize();
+    const recenterThreshold = Math.max(
+      72,
+      Math.min(mapSize.x, mapSize.y) * 0.22,
+    );
+
+    if (pixelDelta <= recenterThreshold) {
+      return;
+    }
+
+    map.panTo([vehicle.markerLat, vehicle.markerLng], {
+      animate: true,
+      duration: 0.65,
+      easeLinearity: 0.25,
+    });
+  }, [followedVehicleId, map, vehicle]);
 
   return null;
 }
@@ -536,6 +608,8 @@ export function BusMap({
   onRequestUserLocation,
   liveTrackingEnabled = false,
   liveTrackingRouteId = null,
+  followedVehicleId = null,
+  onFollowVehicle,
 }: BusMapProps) {
   const visibleRoutes = useMemo(
     () =>
@@ -587,9 +661,18 @@ export function BusMap({
           markerLat: placement.lat,
           markerLng: placement.lng,
           routeColor: route?.colorHint ?? "#dc2626",
+          routeLabel: route?.directionLabel ?? null,
         };
       }),
     [routesById, visibleVehicles],
+  );
+  const followedVehicle = useMemo(
+    () =>
+      followedVehicleId
+        ? positionedVehicles.find((vehicle) => vehicle.vehicleId === followedVehicleId) ??
+          null
+        : null,
+    [followedVehicleId, positionedVehicles],
   );
 
   return (
@@ -612,6 +695,10 @@ export function BusMap({
           userLocation={userLocation}
           nearbyStops={nearbyStops}
           signal={focusNearbyStopsSignal}
+        />
+        <FocusFollowedVehicle
+          vehicle={followedVehicle}
+          followedVehicleId={followedVehicleId}
         />
         <RecenterControl
           userLocation={userLocation}
@@ -678,12 +765,30 @@ export function BusMap({
             <Marker
               key={vehicle.vehicleId}
               position={[vehicle.markerLat, vehicle.markerLng]}
+              zIndexOffset={vehicle.vehicleId === followedVehicleId ? 120 : 0}
               icon={createBusIcon(
                 vehicle.routeColor,
                 vehicle.markerHeading,
                 liveTrackingEnabled,
+                vehicle.vehicleId === followedVehicleId,
               )}
-            />
+            >
+              {vehicle.vehicleId !== followedVehicleId ? (
+                <Popup closeButton={false} offset={[0, -16]}>
+                  <div className="vehicle-popup">
+                    <button
+                      type="button"
+                      className="vehicle-popup__button"
+                      onClick={() => {
+                        onFollowVehicle?.(vehicle);
+                      }}
+                    >
+                      Seguir bus
+                    </button>
+                  </div>
+                </Popup>
+              ) : null}
+            </Marker>
           ))}
         </Pane>
 
