@@ -84,6 +84,110 @@ function getLineOptionLabel(line: Line, isFavorite: boolean) {
   return `${favoritePrefix}${line.publicCode} ${line.displayName} · ${statusLabel}`;
 }
 
+function getVehicleTrackingLabel(vehicleId: string) {
+  return vehicleId.length > 10
+    ? `Vehículo ${vehicleId.slice(-4)}`
+    : `Vehículo ${vehicleId}`;
+}
+
+function getDistanceBetweenPoints(
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+) {
+  return Math.hypot(end.lat - start.lat, end.lng - start.lng);
+}
+
+function getProjectedPositionOnSegment(
+  point: { lat: number; lng: number },
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+) {
+  const dx = end.lat - start.lat;
+  const dy = end.lng - start.lng;
+  const denominator = dx * dx + dy * dy;
+
+  if (denominator === 0) {
+    return {
+      distance: getDistanceBetweenPoints(point, start),
+      progress: 0,
+    };
+  }
+
+  const projection =
+    ((point.lat - start.lat) * dx + (point.lng - start.lng) * dy) / denominator;
+  const progress = Math.min(1, Math.max(0, projection));
+  const projectedLat = start.lat + dx * progress;
+  const projectedLng = start.lng + dy * progress;
+
+  return {
+    distance: Math.hypot(point.lat - projectedLat, point.lng - projectedLng),
+    progress,
+  };
+}
+
+function getRouteProgressAtPoint(
+  point: { lat: number; lng: number },
+  path: Array<{ lat: number; lng: number }>,
+) {
+  if (path.length < 2) {
+    return null;
+  }
+
+  const segmentLengths: number[] = [];
+  let traversedLength = 0;
+  let bestMatch:
+    | {
+        distance: number;
+        absoluteProgress: number;
+      }
+    | undefined;
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const start = path[index];
+    const end = path[index + 1];
+    const segmentLength = getDistanceBetweenPoints(start, end);
+    segmentLengths.push(segmentLength);
+
+    const projection = getProjectedPositionOnSegment(point, start, end);
+    const absoluteProgress = traversedLength + segmentLength * projection.progress;
+
+    if (!bestMatch || projection.distance < bestMatch.distance) {
+      bestMatch = {
+        distance: projection.distance,
+        absoluteProgress,
+      };
+    }
+
+    traversedLength += segmentLength;
+  }
+
+  return bestMatch?.absoluteProgress ?? null;
+}
+
+function formatEtaLabel(etaSeconds: number) {
+  if (etaSeconds < 60) {
+    return "Menos de 1 min";
+  }
+
+  const minutes = Math.ceil(etaSeconds / 60);
+  return `${minutes} min`;
+}
+
+type FollowedVehicleStopState =
+  | {
+      mode: "real";
+      stopId: string;
+      stopName: string;
+      etaLabel: string;
+    }
+  | {
+      mode: "stop-only";
+      stopId: string;
+      stopName: string;
+      note: string;
+    }
+  | null;
+
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -97,6 +201,12 @@ export function TransitDashboard() {
   const [showActiveLinesOnly, setShowActiveLinesOnly] = useState(false);
   const [isLiveTrackingEnabled, setIsLiveTrackingEnabled] = useState(false);
   const [liveTrackingRouteId, setLiveTrackingRouteId] = useState<string | null>(null);
+  const [followedVehicleId, setFollowedVehicleId] = useState<string | null>(null);
+  const [vehicleTrackingNotice, setVehicleTrackingNotice] = useState<string | null>(
+    null,
+  );
+  const [followedVehicleStopState, setFollowedVehicleStopState] =
+    useState<FollowedVehicleStopState>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [favoriteLineIds, setFavoriteLineIds] = useState<string[]>([]);
   const [favoriteStops, setFavoriteStops] = useState<FavoriteStop[]>([]);
@@ -118,6 +228,10 @@ export function TransitDashboard() {
   const [stopError, setStopError] = useState<string | null>(null);
   const geolocationWatchId = useRef<number | null>(null);
   const lastSelectedLineIdRef = useRef<string | null>(null);
+  const lastVehicleTrackingLineIdRef = useRef<string | null>(null);
+  const previousLiveTrackingRouteIdBeforeFollowRef = useRef<
+    string | null | undefined
+  >(undefined);
   const previousUnfilteredLineIdRef = useRef<string | null>(null);
   const preserveSelectedStopRef = useRef<Stop | null>(null);
   const pendingFavoriteStopIdRef = useRef<string | null>(null);
@@ -639,6 +753,65 @@ export function TransitDashboard() {
         : [],
     [canFilterLiveTrackingByRoute, routeSummaries, vehicles],
   );
+  const visibleLiveTrackingVehicles = useMemo(
+    () =>
+      isLiveTrackingEnabled && canFilterLiveTrackingByRoute && liveTrackingRouteId
+        ? vehicles.filter((vehicle) => vehicle.routeId === liveTrackingRouteId)
+        : vehicles,
+    [canFilterLiveTrackingByRoute, isLiveTrackingEnabled, liveTrackingRouteId, vehicles],
+  );
+  const followedVehicle = useMemo(
+    () =>
+      followedVehicleId
+        ? visibleLiveTrackingVehicles.find(
+            (vehicle) => vehicle.vehicleId === followedVehicleId,
+          ) ?? null
+        : null,
+    [followedVehicleId, visibleLiveTrackingVehicles],
+  );
+  const followedVehicleRoute = useMemo(
+    () =>
+      followedVehicle?.routeId
+        ? routes.find((route) => route.routeId === followedVehicle.routeId) ?? null
+        : null,
+    [followedVehicle, routes],
+  );
+  const followedVehicleNextStop = useMemo(() => {
+    if (!followedVehicle || !followedVehicleRoute || followedVehicleRoute.path.length < 2) {
+      return null;
+    }
+
+    const vehicleProgress = getRouteProgressAtPoint(
+      { lat: followedVehicle.lat, lng: followedVehicle.lng },
+      followedVehicleRoute.path,
+    );
+
+    if (vehicleProgress === null) {
+      return null;
+    }
+
+    const orderedStops = [...followedVehicleRoute.stops]
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((stop) => ({
+        stop,
+        progress: getRouteProgressAtPoint(
+          { lat: stop.lat, lng: stop.lng },
+          followedVehicleRoute.path,
+        ),
+      }))
+      .filter(
+        (
+          item,
+        ): item is {
+          stop: (typeof followedVehicleRoute.stops)[number];
+          progress: number;
+        } => item.progress !== null,
+      );
+
+    return (
+      orderedStops.find((item) => item.progress > vehicleProgress + 0.00005)?.stop ?? null
+    );
+  }, [followedVehicle, followedVehicleRoute]);
   const visibleLines = useMemo(
     () =>
       showActiveLinesOnly
@@ -673,8 +846,42 @@ export function TransitDashboard() {
     if (!selectedLineId) {
       setIsLiveTrackingEnabled(false);
       setLiveTrackingRouteId(null);
+      setFollowedVehicleId(null);
+      setVehicleTrackingNotice(null);
+      setFollowedVehicleStopState(null);
+      previousLiveTrackingRouteIdBeforeFollowRef.current = undefined;
     }
   }, [selectedLineId]);
+
+  useEffect(() => {
+    if (lastVehicleTrackingLineIdRef.current === null) {
+      lastVehicleTrackingLineIdRef.current = selectedLineId;
+      return;
+    }
+
+    if (selectedLineId !== lastVehicleTrackingLineIdRef.current) {
+      setFollowedVehicleId(null);
+      setVehicleTrackingNotice(null);
+      setFollowedVehicleStopState(null);
+      previousLiveTrackingRouteIdBeforeFollowRef.current = undefined;
+    }
+
+    lastVehicleTrackingLineIdRef.current = selectedLineId;
+  }, [selectedLineId]);
+
+  useEffect(() => {
+    if (isLiveTrackingEnabled) {
+      return;
+    }
+
+    if (followedVehicleId !== null) {
+      setFollowedVehicleId(null);
+    }
+    if (followedVehicleStopState !== null) {
+      setFollowedVehicleStopState(null);
+    }
+    previousLiveTrackingRouteIdBeforeFollowRef.current = undefined;
+  }, [followedVehicleId, followedVehicleStopState, isLiveTrackingEnabled]);
 
   useEffect(() => {
     if (!isLiveTrackingEnabled || !canFilterLiveTrackingByRoute) {
@@ -684,14 +891,15 @@ export function TransitDashboard() {
       return;
     }
 
-    if (
-      liveTrackingRouteId &&
-      liveTrackingRouteOptions.some((route) => route.id === liveTrackingRouteId)
-    ) {
+    if (liveTrackingRouteId === null) {
       return;
     }
 
-    setLiveTrackingRouteId(liveTrackingRouteOptions[0]?.id ?? null);
+    if (liveTrackingRouteOptions.some((route) => route.id === liveTrackingRouteId)) {
+      return;
+    }
+
+    setLiveTrackingRouteId(null);
   }, [
     canFilterLiveTrackingByRoute,
     isLiveTrackingEnabled,
@@ -720,6 +928,114 @@ export function TransitDashboard() {
     }
   }, [selectedLineId, showActiveLinesOnly, visibleLines]);
 
+  useEffect(() => {
+    if (!followedVehicleId) {
+      return;
+    }
+
+    if (vehicles.some((vehicle) => vehicle.vehicleId === followedVehicleId)) {
+      return;
+    }
+
+    if (previousLiveTrackingRouteIdBeforeFollowRef.current !== undefined) {
+      setLiveTrackingRouteId(previousLiveTrackingRouteIdBeforeFollowRef.current);
+      previousLiveTrackingRouteIdBeforeFollowRef.current = undefined;
+    }
+    setFollowedVehicleId(null);
+    setVehicleTrackingNotice("El vehículo seguido ya no está disponible.");
+    setFollowedVehicleStopState(null);
+  }, [followedVehicleId, vehicles]);
+
+  useEffect(() => {
+    if (!followedVehicleId) {
+      return;
+    }
+
+    if (
+      visibleLiveTrackingVehicles.some(
+        (vehicle) => vehicle.vehicleId === followedVehicleId,
+      )
+    ) {
+      return;
+    }
+
+    if (previousLiveTrackingRouteIdBeforeFollowRef.current !== undefined) {
+      setLiveTrackingRouteId(previousLiveTrackingRouteIdBeforeFollowRef.current);
+      previousLiveTrackingRouteIdBeforeFollowRef.current = undefined;
+    }
+    setFollowedVehicleId(null);
+    setFollowedVehicleStopState(null);
+  }, [followedVehicleId, visibleLiveTrackingVehicles]);
+
+  useEffect(() => {
+    if (!followedVehicle || !followedVehicleNextStop || !selectedLineId) {
+      setFollowedVehicleStopState(null);
+      return;
+    }
+
+    let active = true;
+    const stopId = followedVehicleNextStop.id;
+    const stopName = followedVehicleNextStop.name;
+    const trackedVehicleId = followedVehicle.vehicleId;
+
+    async function loadTrackedStopArrival() {
+      try {
+        const response = await fetch(`/api/stops/${stopId}/arrivals`);
+        if (!response.ok) {
+          throw new Error("No se pudo cargar la llegada de la próxima parada.");
+        }
+
+        const data = (await response.json()) as StopArrivalsResponse;
+        if (!active) {
+          return;
+        }
+
+        const exactArrival = data.arrivals.find(
+          (arrival) =>
+            arrival.vehicleId === trackedVehicleId &&
+            arrival.lineId === selectedLineId,
+        );
+
+        if (exactArrival) {
+          setFollowedVehicleStopState({
+            mode: "real",
+            stopId,
+            stopName,
+            etaLabel: formatEtaLabel(exactArrival.etaSeconds),
+          });
+          return;
+        }
+
+        setFollowedVehicleStopState({
+          mode: "stop-only",
+          stopId,
+          stopName,
+          note: "Tiempo real no disponible",
+        });
+      } catch {
+        if (active) {
+          setFollowedVehicleStopState({
+            mode: "stop-only",
+            stopId,
+            stopName,
+            note: "Tiempo real no disponible",
+          });
+        }
+      }
+    }
+
+    void loadTrackedStopArrival();
+
+    const intervalId = window.setInterval(() => {
+      void loadTrackedStopArrival();
+    }, REALTIME_POLL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [followedVehicle, followedVehicleNextStop, selectedLineId]);
+
   function activateLineFromStop(lineId: string) {
     if (!selectedStop || lineId === selectedLineId) {
       return;
@@ -735,6 +1051,29 @@ export function TransitDashboard() {
         ? current.filter((favoriteId) => favoriteId !== lineId)
         : [...current, lineId],
     );
+  }
+
+  function startFollowingVehicle(vehicle: VehiclePosition) {
+    setVehicleTrackingNotice(null);
+    if (previousLiveTrackingRouteIdBeforeFollowRef.current === undefined) {
+      previousLiveTrackingRouteIdBeforeFollowRef.current = liveTrackingRouteId;
+    }
+    setIsLiveTrackingEnabled(true);
+    if (vehicle.routeId && routes.some((route) => route.routeId === vehicle.routeId)) {
+      setLiveTrackingRouteId(vehicle.routeId);
+    } else {
+      setLiveTrackingRouteId(null);
+    }
+    setFollowedVehicleId(vehicle.vehicleId);
+  }
+
+  function stopFollowingVehicle() {
+    setFollowedVehicleId(null);
+    setFollowedVehicleStopState(null);
+    if (previousLiveTrackingRouteIdBeforeFollowRef.current !== undefined) {
+      setLiveTrackingRouteId(previousLiveTrackingRouteIdBeforeFollowRef.current);
+      previousLiveTrackingRouteIdBeforeFollowRef.current = undefined;
+    }
   }
 
   function toggleFavoriteStop(stop: Stop) {
@@ -1103,7 +1442,71 @@ export function TransitDashboard() {
 
       <section className="map-stage">
         <div className="map-overlay map-overlay--top">
-          {isLiveTrackingEnabled && selectedLine ? (
+          {followedVehicle ? (
+            <div className="live-tracking-pill live-tracking-pill--follow" aria-live="polite">
+              <span className="live-tracking-pill__eyebrow">Siguiendo bus</span>
+              <strong className="live-tracking-pill__title">
+                {getVehicleTrackingLabel(followedVehicle.vehicleId)}
+              </strong>
+              {followedVehicleStopState ? (
+                <div className="live-tracking-pill__meta">
+                  <span className="live-tracking-pill__stop">
+                    Próxima: {followedVehicleStopState.stopName}
+                  </span>
+                  <span className="live-tracking-pill__eta">
+                    {followedVehicleStopState.mode === "real"
+                      ? followedVehicleStopState.etaLabel
+                      : followedVehicleStopState.note}
+                  </span>
+                </div>
+              ) : followedVehicleNextStop ? (
+                <div className="live-tracking-pill__meta">
+                  <span className="live-tracking-pill__stop">
+                    Próxima: {followedVehicleNextStop.name}
+                  </span>
+                  <span className="live-tracking-pill__eta">
+                    Tiempo real no disponible
+                  </span>
+                </div>
+              ) : (
+                <div className="live-tracking-pill__meta">
+                  <span className="live-tracking-pill__stop">
+                    Próxima parada no disponible
+                  </span>
+                </div>
+              )}
+              <div className="live-tracking-pill__actions">
+                <button
+                  type="button"
+                  className="live-tracking-pill__button"
+                  onClick={stopFollowingVehicle}
+                >
+                  Detener
+                </button>
+              </div>
+            </div>
+          ) : vehicleTrackingNotice ? (
+            <div
+              className="live-tracking-pill live-tracking-pill--notice"
+              aria-live="polite"
+            >
+              <span className="live-tracking-pill__eyebrow">
+                Seguimiento detenido
+              </span>
+              <strong className="live-tracking-pill__title">
+                {vehicleTrackingNotice}
+              </strong>
+              <div className="live-tracking-pill__actions">
+                <button
+                  type="button"
+                  className="live-tracking-pill__button"
+                  onClick={() => setVehicleTrackingNotice(null)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          ) : isLiveTrackingEnabled && selectedLine ? (
             <div className="live-tracking-pill" aria-live="polite">
               <span className="live-tracking-pill__eyebrow">
                 Seguimiento en vivo
@@ -1453,6 +1856,8 @@ export function TransitDashboard() {
                 ? liveTrackingRouteId
                 : null
             }
+            followedVehicleId={followedVehicleId}
+            onFollowVehicle={startFollowingVehicle}
           />
         </div>
       </section>
