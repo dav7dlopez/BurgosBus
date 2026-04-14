@@ -1186,7 +1186,7 @@ export function TransitDashboard() {
                 setFocusUserLocationSignal((current) => current + 1);
               }}
             >
-              GPS
+              <span className="theme-toggle__utility-label">GPS</span>
             </button>
             <button
               type="button"
@@ -1207,7 +1207,8 @@ export function TransitDashboard() {
                 setFocusNearbyStopsSignal((current) => current + 1);
               }}
             >
-              Cercanas
+              <span aria-hidden="true">◎</span>
+              <span className="theme-toggle__utility-label">Cercanas</span>
             </button>
             <button
               type="button"
@@ -1228,87 +1229,100 @@ export function TransitDashboard() {
               }
               onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
             >
-              Paradas Favoritas
+              <span aria-hidden="true">★</span>
+              <span className="theme-toggle__utility-label">Favoritas</span>
             </button>
           </div>
         </div>
 
-        <div className="topbar-controls">
-          <div className="line-picker">
-            <div className="line-picker__row">
-              <button
-                type="button"
-                className={`favorite-toggle line-picker__favorite${
-                  isSelectedLineFavorite ? " is-active" : ""
-                }`}
-                onClick={() => toggleFavoriteLine(selectedLineId)}
-                disabled={!selectedLineId}
-                aria-pressed={isSelectedLineFavorite}
-                aria-label={
-                  isSelectedLineFavorite
-                    ? "Quitar linea de favoritas"
-                    : "Marcar linea como favorita"
-                }
-                title={
-                  isSelectedLineFavorite
-                    ? "Quitar de favoritas"
-                    : "Guardar en favoritas"
-                }
-              >
-                <span className="favorite-toggle__icon" aria-hidden="true">
-                  ★
-                </span>
-                <span className="favorite-toggle__label">
-                  {isSelectedLineFavorite ? "Favorita" : "Guardar"}
-                </span>
-              </button>
-              <label className="field field--compact">
-                <span>Linea activa</span>
-                <select
-                  value={selectedLineId}
-                  onChange={(event) => setSelectedLineId(event.target.value)}
-                  disabled={loading || visibleLines.length === 0}
-                >
-                  {visibleLines.length > 0 ? (
-                    visibleLines.map((line) => (
-                      <option key={line.id} value={line.id}>
-                        {getLineOptionLabel(
-                          line,
-                          favoriteLineIds.includes(line.id),
-                        )}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>
-                      No hay lineas en servicio ahora
-                    </option>
-                  )}
-                </select>
-              </label>
-              <button
-                type="button"
-                className={`favorite-toggle line-filter-toggle${
-                  showActiveLinesOnly ? " is-active" : ""
-                }`}
-                onClick={toggleShowActiveLinesOnly}
-                aria-pressed={showActiveLinesOnly}
-                aria-label={
-                  showActiveLinesOnly
-                    ? "Mostrar todas las lineas"
-                    : "Mostrar solo lineas en servicio"
-                }
-                title={
-                  showActiveLinesOnly
-                    ? "Mostrar todas las lineas"
-                    : "Mostrar solo lineas en servicio"
-                }
-              >
-                <span className="favorite-toggle__label">Ver activas</span>
-              </button>
-            </div>
+      </header>
 
+      {lineError ? <p className="error-banner">{lineError}</p> : null}
+
+      <section className="map-stage">
+        <div className="map-overlay map-overlay--top">
+          <div className="map-toolbar">
+            <div className="line-picker line-picker--floating">
+              <div className="line-picker__row">
+                <label className="field field--compact">
+                  <span>Línea</span>
+                  <select
+                    value={selectedLineId}
+                    onChange={(event) => setSelectedLineId(event.target.value)}
+                    disabled={loading || visibleLines.length === 0}
+                  >
+                    {visibleLines.length > 0 ? (
+                      visibleLines.map((line) => (
+                        <option key={line.id} value={line.id}>
+                          {getLineOptionLabel(
+                            line,
+                            favoriteLineIds.includes(line.id),
+                          )}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        No hay lineas en servicio ahora
+                      </option>
+                    )}
+                  </select>
+                </label>
+                <div className="line-picker__row-actions">
+                  <button
+                    type="button"
+                    className={`favorite-toggle line-picker__favorite${
+                      isSelectedLineFavorite ? " is-active" : ""
+                    }`}
+                    onClick={() => toggleFavoriteLine(selectedLineId)}
+                    disabled={!selectedLineId}
+                    aria-pressed={isSelectedLineFavorite}
+                    aria-label={
+                      isSelectedLineFavorite
+                        ? "Quitar linea de favoritas"
+                        : "Marcar linea como favorita"
+                    }
+                    title={
+                      isSelectedLineFavorite
+                        ? "Quitar de favoritas"
+                        : "Guardar en favoritas"
+                    }
+                  >
+                    <span className="favorite-toggle__icon" aria-hidden="true">
+                      ★
+                    </span>
+                    <span className="favorite-toggle__label">
+                      {isSelectedLineFavorite ? "Favorita" : "Guardar"}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`favorite-toggle line-filter-toggle${
+                      showActiveLinesOnly ? " is-active" : ""
+                    }`}
+                    onClick={toggleShowActiveLinesOnly}
+                    aria-pressed={showActiveLinesOnly}
+                    aria-label={
+                      showActiveLinesOnly
+                        ? "Mostrar todas las lineas"
+                        : "Mostrar solo lineas en servicio"
+                    }
+                    title={
+                      showActiveLinesOnly
+                        ? "Mostrar todas las lineas"
+                        : "Mostrar solo lineas en servicio"
+                    }
+                  >
+                    <span className="favorite-toggle__label">Ver activas</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="map-overlay map-overlay--context">
+          <div className="map-status-cluster">
             {selectedLine ? (
-              <div className="line-picker__live">
+              <div className="map-live-controls" aria-label="Controles de seguimiento">
                 <button
                   type="button"
                   className={`favorite-toggle live-tracking-toggle${
@@ -1335,19 +1349,15 @@ export function TransitDashboard() {
                       : "Activar seguimiento en vivo"
                   }
                 >
-                  <span className="favorite-toggle__label">
-                    Seguimiento en vivo
-                  </span>
+                  <span className="favorite-toggle__label">Seguimiento en vivo</span>
                 </button>
-                <span className="line-picker__live-meta">
-                  {vehicles.length}{" "}
-                  {vehicles.length === 1
-                    ? "vehículo"
-                    : "vehículos"} visibles
-                </span>
+                {isLiveTrackingEnabled ? (
+                  <span className="line-picker__live-meta line-picker__live-meta--compact">
+                    {vehicles.length} {vehicles.length === 1 ? "bus" : "buses"}
+                  </span>
+                ) : null}
               </div>
             ) : null}
-
             {isLiveTrackingEnabled && canFilterLiveTrackingByRoute ? (
               <div
                 className="live-tracking-route-picker"
@@ -1376,175 +1386,168 @@ export function TransitDashboard() {
                 ))}
               </div>
             ) : null}
-
-            {favoriteLines.length > 0 ? (
-              <div className="favorite-strip" aria-label="Lineas favoritas">
-                <span className="favorite-strip__label">Favoritas</span>
-                <div className="favorite-strip__scroller">
-                  {favoriteLines.map((line) => (
-                    <button
-                      key={line.id}
-                      type="button"
-                      className={`favorite-line-chip${
-                        line.id === selectedLineId ? " is-active" : ""
-                      }`}
-                      onClick={() => setSelectedLineId(line.id)}
-                    >
-                      <span className="favorite-line-chip__icon" aria-hidden="true">
-                        ★
-                      </span>
-                      {line.publicCode}
-                    </button>
-                  ))}
+            {followedVehicle ? (
+              <div
+                className="live-tracking-pill live-tracking-pill--follow"
+                aria-live="polite"
+              >
+                <span className="live-tracking-pill__eyebrow">Siguiendo bus</span>
+                <strong className="live-tracking-pill__title">
+                  {getVehicleTrackingLabel(followedVehicle.vehicleId)}
+                </strong>
+                {followedVehicleStopState ? (
+                  <div className="live-tracking-pill__meta">
+                    <span className="live-tracking-pill__stop">
+                      Próxima: {followedVehicleStopState.stopName}
+                    </span>
+                    <span className="live-tracking-pill__eta">
+                      {followedVehicleStopState.mode === "real"
+                        ? followedVehicleStopState.etaLabel
+                        : followedVehicleStopState.note}
+                    </span>
+                  </div>
+                ) : followedVehicleNextStop ? (
+                  <div className="live-tracking-pill__meta">
+                    <span className="live-tracking-pill__stop">
+                      Próxima: {followedVehicleNextStop.name}
+                    </span>
+                    <span className="live-tracking-pill__eta">
+                      Tiempo real no disponible
+                    </span>
+                  </div>
+                ) : (
+                  <div className="live-tracking-pill__meta">
+                    <span className="live-tracking-pill__stop">
+                      Próxima parada no disponible
+                    </span>
+                  </div>
+                )}
+                <div className="live-tracking-pill__actions">
+                  <button
+                    type="button"
+                    className="live-tracking-pill__button"
+                    onClick={stopFollowingVehicle}
+                  >
+                    Detener
+                  </button>
+                </div>
+              </div>
+            ) : vehicleTrackingNotice ? (
+              <div
+                className="live-tracking-pill live-tracking-pill--notice"
+                aria-live="polite"
+              >
+                <span className="live-tracking-pill__eyebrow">
+                  Seguimiento detenido
+                </span>
+                <strong className="live-tracking-pill__title">
+                  {vehicleTrackingNotice}
+                </strong>
+                <div className="live-tracking-pill__actions">
+                  <button
+                    type="button"
+                    className="live-tracking-pill__button"
+                    onClick={() => setVehicleTrackingNotice(null)}
+                  >
+                    Cerrar
+                  </button>
                 </div>
               </div>
             ) : null}
-          </div>
-        </div>
-
-        {favoriteStopsPanelOpen ? (
-          <div
-            id="favorite-stops-panel"
-            className="favorite-stop-strip favorite-stop-strip--panel"
-            aria-label="Paradas favoritas"
-          >
-            {favoriteStops.length > 0 ? (
-              <>
-                <span className="favorite-stop-strip__label">Paradas favoritas</span>
-                <div className="favorite-stop-strip__scroller">
-                  {favoriteStops.map((favoriteStop) => (
-                    <button
-                      key={favoriteStop.id}
-                      type="button"
-                      className={`favorite-stop-chip${
-                        favoriteStop.id === selectedStop?.id ? " is-active" : ""
-                      }`}
-                      onClick={() => reopenFavoriteStop(favoriteStop)}
-                      title={favoriteStop.name}
-                    >
-                      <span className="favorite-stop-chip__name">{favoriteStop.name}</span>
-                      <span className="favorite-stop-chip__meta">#{favoriteStop.id}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="favorite-stop-empty">
-                <strong>No hay paradas favoritas aún</strong>
-                <p>Guarda una parada desde su panel para tenerla aquí a mano.</p>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </header>
-
-      {lineError ? <p className="error-banner">{lineError}</p> : null}
-
-      <section className="map-stage">
-        <div className="map-overlay map-overlay--top">
-          {followedVehicle ? (
-            <div className="live-tracking-pill live-tracking-pill--follow" aria-live="polite">
-              <span className="live-tracking-pill__eyebrow">Siguiendo bus</span>
-              <strong className="live-tracking-pill__title">
-                {getVehicleTrackingLabel(followedVehicle.vehicleId)}
-              </strong>
-              {followedVehicleStopState ? (
-                <div className="live-tracking-pill__meta">
-                  <span className="live-tracking-pill__stop">
-                    Próxima: {followedVehicleStopState.stopName}
+            <div className="map-context-controls">
+              <button
+                type="button"
+                className={`legend-toggle${isMobileLegendOpen ? " is-open" : ""}`}
+                onClick={() => setIsMobileLegendOpen((current) => !current)}
+                aria-expanded={isMobileLegendOpen}
+                aria-controls="route-legend"
+              >
+                <span aria-hidden="true">≋</span>
+                <span className="legend-toggle__label">Recorridos</span>
+              </button>
+              <div
+                id="route-legend"
+                className={`route-legend${isMobileLegendOpen ? " is-open" : ""}`}
+              >
+                {routeSummaries.map((route) => (
+                  <span key={route.renderKey} className="route-pill">
+                    <span
+                      className="route-pill__swatch"
+                      style={{ backgroundColor: route.color }}
+                    />
+                    {route.label}
                   </span>
-                  <span className="live-tracking-pill__eta">
-                    {followedVehicleStopState.mode === "real"
-                      ? followedVehicleStopState.etaLabel
-                      : followedVehicleStopState.note}
-                  </span>
-                </div>
-              ) : followedVehicleNextStop ? (
-                <div className="live-tracking-pill__meta">
-                  <span className="live-tracking-pill__stop">
-                    Próxima: {followedVehicleNextStop.name}
-                  </span>
-                  <span className="live-tracking-pill__eta">
-                    Tiempo real no disponible
-                  </span>
-                </div>
-              ) : (
-                <div className="live-tracking-pill__meta">
-                  <span className="live-tracking-pill__stop">
-                    Próxima parada no disponible
-                  </span>
-                </div>
-              )}
-              <div className="live-tracking-pill__actions">
-                <button
-                  type="button"
-                  className="live-tracking-pill__button"
-                  onClick={stopFollowingVehicle}
-                >
-                  Detener
-                </button>
+                ))}
               </div>
             </div>
-          ) : vehicleTrackingNotice ? (
-            <div
-              className="live-tracking-pill live-tracking-pill--notice"
-              aria-live="polite"
-            >
-              <span className="live-tracking-pill__eyebrow">
-                Seguimiento detenido
-              </span>
-              <strong className="live-tracking-pill__title">
-                {vehicleTrackingNotice}
-              </strong>
-              <div className="live-tracking-pill__actions">
-                <button
-                  type="button"
-                  className="live-tracking-pill__button"
-                  onClick={() => setVehicleTrackingNotice(null)}
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          ) : isLiveTrackingEnabled && selectedLine ? (
-            <div className="live-tracking-pill" aria-live="polite">
-              <span className="live-tracking-pill__eyebrow">
-                Seguimiento en vivo
-              </span>
-              <strong className="live-tracking-pill__title">
-                {vehicles.length}{" "}
-                {vehicles.length === 1
-                  ? "vehículo"
-                  : "vehículos"}
-              </strong>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className={`legend-toggle${isMobileLegendOpen ? " is-open" : ""}`}
-            onClick={() => setIsMobileLegendOpen((current) => !current)}
-            aria-expanded={isMobileLegendOpen}
-            aria-controls="route-legend"
-          >
-            Recorridos
-          </button>
-          <div
-            id="route-legend"
-            className={`route-legend${isMobileLegendOpen ? " is-open" : ""}`}
-          >
-            {routeSummaries.map((route) => (
-              <span key={route.renderKey} className="route-pill">
-                <span
-                  className="route-pill__swatch"
-                  style={{ backgroundColor: route.color }}
-                />
-                {route.label}
-              </span>
-            ))}
           </div>
         </div>
 
         <div className="map-overlay map-overlay--bottom">
+          {favoriteLines.length > 0 ? (
+            <div className="favorite-strip favorite-strip--floating" aria-label="Lineas favoritas">
+              <span className="favorite-strip__label">Favoritas</span>
+              <div className="favorite-strip__scroller">
+                {favoriteLines.map((line) => (
+                  <button
+                    key={line.id}
+                    type="button"
+                    className={`favorite-line-chip${
+                      line.id === selectedLineId ? " is-active" : ""
+                    }`}
+                    onClick={() => setSelectedLineId(line.id)}
+                  >
+                    <span className="favorite-line-chip__icon" aria-hidden="true">
+                      ★
+                    </span>
+                    {line.publicCode}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {favoriteStopsPanelOpen ? (
+            <div
+              id="favorite-stops-panel"
+              className="favorite-stop-strip favorite-stop-strip--panel"
+              aria-label="Paradas favoritas"
+            >
+              {favoriteStops.length > 0 ? (
+                <>
+                  <span className="favorite-stop-strip__label">
+                    Paradas favoritas
+                  </span>
+                  <div className="favorite-stop-strip__scroller">
+                    {favoriteStops.map((favoriteStop) => (
+                      <button
+                        key={favoriteStop.id}
+                        type="button"
+                        className={`favorite-stop-chip${
+                          favoriteStop.id === selectedStop?.id ? " is-active" : ""
+                        }`}
+                        onClick={() => reopenFavoriteStop(favoriteStop)}
+                        title={favoriteStop.name}
+                      >
+                        <span className="favorite-stop-chip__name">
+                          {favoriteStop.name}
+                        </span>
+                        <span className="favorite-stop-chip__meta">
+                          #{favoriteStop.id}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="favorite-stop-empty">
+                  <strong>No hay paradas favoritas aún</strong>
+                  <p>
+                    Guarda una parada desde su panel para tenerla aquí a mano.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : null}
           {geolocationStatus === "insecure" ? (
             <StatusCard
               eyebrow="Ubicacion"

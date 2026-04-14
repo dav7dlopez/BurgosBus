@@ -2,7 +2,11 @@
 
 import { Fragment, useEffect, useMemo, useRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { IconBus, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconBus,
+  IconChevronRight,
+  IconCurrentLocation,
+} from "@tabler/icons-react";
 import L, {
   divIcon,
   latLngBounds,
@@ -202,7 +206,12 @@ function RecenterControl({
       }}
       data-state={geolocationStatus ?? "idle"}
     >
-      ◎
+      <IconCurrentLocation
+        size={18}
+        strokeWidth={2.1}
+        aria-hidden="true"
+        focusable="false"
+      />
     </button>
   );
 }
