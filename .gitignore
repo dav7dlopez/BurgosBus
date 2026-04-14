@@ -43,3 +43,5 @@ next-env.d.ts
 #AI
 AGENTS.md
 .codex/
+.agents/
+skills-lock.json

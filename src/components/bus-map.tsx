@@ -2,7 +2,11 @@
 
 import { Fragment, useEffect, useMemo, useRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { IconBus, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconBus,
+  IconChevronRight,
+  IconCurrentLocation,
+} from "@tabler/icons-react";
 import L, {
   divIcon,
   latLngBounds,
@@ -202,7 +206,12 @@ function RecenterControl({
       }}
       data-state={geolocationStatus ?? "idle"}
     >
-      ◎
+      <IconCurrentLocation
+        size={18}
+        strokeWidth={2.1}
+        aria-hidden="true"
+        focusable="false"
+      />
     </button>
   );
 }
@@ -682,7 +691,7 @@ export function BusMap({
         zoom={provider.zoom}
         minZoom={provider.minZoom}
         maxZoom={provider.maxZoom}
-        zoomControl
+        zoomControl={false}
         className="leaflet-map"
       >
         <OpenFreeMapLayer provider={provider} />
@@ -774,7 +783,11 @@ export function BusMap({
               )}
             >
               {vehicle.vehicleId !== followedVehicleId ? (
-                <Popup closeButton={false} offset={[0, -16]}>
+                <Popup
+                  className="vehicle-follow-popup"
+                  closeButton={false}
+                  offset={[0, -16]}
+                >
                   <div className="vehicle-popup">
                     <button
                       type="button"
