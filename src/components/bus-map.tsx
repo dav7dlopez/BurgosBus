@@ -691,7 +691,7 @@ export function BusMap({
         zoom={provider.zoom}
         minZoom={provider.minZoom}
         maxZoom={provider.maxZoom}
-        zoomControl
+        zoomControl={false}
         className="leaflet-map"
       >
         <OpenFreeMapLayer provider={provider} />

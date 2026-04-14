@@ -199,6 +199,9 @@ a {
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 10px 20px rgba(15, 23, 42, 0.1);
   backdrop-filter: blur(30px) saturate(186%);
+  overflow: hidden;
+  isolation: isolate;
+  background-clip: padding-box;
 }
 
 .line-picker--floating {
@@ -662,8 +665,7 @@ a {
   overflow: hidden;
   box-shadow:
     0 36px 80px rgba(15, 23, 42, 0.16),
-    0 0 0 1px var(--map-border),
-    0 0 0 18px rgba(255, 255, 255, 0.18);
+    0 0 0 1px var(--map-border);
 }
 
 .map-panel,
@@ -723,8 +725,8 @@ a {
 }
 
 .map-overlay--top {
-  top: 12px;
-  left: 12px;
+  top: 16px;
+  left: 16px;
   right: 72px;
   display: block;
 }
@@ -1083,7 +1085,7 @@ a {
 
 .map-recenter-button {
   position: absolute;
-  bottom: 10px;
+  bottom: 16px;
   left: 58px;
   z-index: 950;
   width: 44px;
@@ -2359,9 +2361,9 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .map-overlay--top {
-    top: 10px;
-    left: 10px;
-    right: 10px;
+    top: 12px;
+    left: 12px;
+    right: 12px;
   }
 
   .map-toolbar {
