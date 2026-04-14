@@ -28,6 +28,9 @@ const NEARBY_STOP_RADIUS_METERS = 1000;
 const INITIAL_LINES_RETRY_ATTEMPTS = 3;
 const INITIAL_LINES_RETRY_DELAY_MS = 1400;
 const BONOBUR_CARD_STORAGE_KEY = "bus-burgos-bonobur-card";
+const BONOBUR_UPSTREAM_BALANCE_URL =
+  "https://bonobur.aytoburgos.es:8443/api/cargasaldo/comprobar";
+const BONOBUR_UPSTREAM_TIMEOUT_MS = 15000;
 
 type BonoburBalanceSuccess = {
   ok: true;
@@ -39,13 +42,15 @@ type BonoburBalanceSuccess = {
   pendingTopUpDate: string | null;
 };
 
-type BonoburBalanceFailure = {
-  ok: false;
-  status: "functional_error" | "technical_error";
-  message: string;
+type BonoburUpstreamPayload = {
+  respuesta?: unknown;
+  error?: unknown;
+  Message?: unknown;
+  saldo?: unknown;
+  vigencia?: unknown;
+  recargaPendiente?: unknown;
+  fechaRecargaPendiente?: unknown;
 };
-
-type BonoburBalanceResponse = BonoburBalanceSuccess | BonoburBalanceFailure;
 
 type FavoriteStop = {
   id: string;
@@ -207,6 +212,14 @@ function formatBonoburEuros(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function toNullableNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toNullableString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 type FollowedVehicleStopState =
@@ -1274,33 +1287,69 @@ export function TransitDashboard() {
     setBonoburError(null);
     setBonoburFunctionalError(null);
 
+    if (!/^\d{10,13}$/.test(normalizedCard)) {
+      setBonoburBalance(null);
+      setBonoburFunctionalError(
+        "Introduce un número de tarjeta válido (solo dígitos).",
+      );
+      setBonoburLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      BONOBUR_UPSTREAM_TIMEOUT_MS,
+    );
+
     try {
-      const response = await fetch("/api/bonobur/balance", {
+      const response = await fetch(BONOBUR_UPSTREAM_BALANCE_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json, text/plain, */*",
         },
         body: JSON.stringify({ numeroTarjeta: normalizedCard }),
+        signal: controller.signal,
       });
 
-      const data = (await response.json()) as BonoburBalanceResponse;
       if (!response.ok) {
-        throw new Error(
-          data.ok ? "No se pudo consultar el saldo BONOBUR." : data.message,
+        throw new Error("Servicio BONOBUR temporalmente no disponible.");
+      }
+
+      let upstreamData: BonoburUpstreamPayload;
+      try {
+        upstreamData = (await response.json()) as BonoburUpstreamPayload;
+      } catch {
+        throw new Error("Servicio BONOBUR temporalmente no disponible.");
+      }
+
+      const functionalError =
+        toNullableString(upstreamData.error) ?? toNullableString(upstreamData.Message);
+      if (upstreamData.respuesta === -1 || functionalError) {
+        setBonoburFunctionalError(
+          functionalError ??
+            "No se ha podido validar la tarjeta BONOBUR en este momento.",
         );
+        setBonoburBalance(null);
+        return;
       }
 
-      if (!data.ok) {
-        if (data.status === "functional_error") {
-          setBonoburFunctionalError(data.message);
-          setBonoburBalance(null);
-          return;
-        }
+      const saldoCents = toNullableNumber(upstreamData.saldo);
+      const recargaPendienteCents = toNullableNumber(upstreamData.recargaPendiente);
 
-        throw new Error(data.message);
-      }
+      const normalizedResponse: BonoburBalanceSuccess = {
+        ok: true,
+        status: "success",
+        observedAt: new Date().toISOString(),
+        balanceEuros: saldoCents !== null ? saldoCents / 100 : null,
+        validity: toNullableString(upstreamData.vigencia),
+        pendingTopUpEuros:
+          recargaPendienteCents !== null ? recargaPendienteCents / 100 : null,
+        pendingTopUpDate: toNullableString(upstreamData.fechaRecargaPendiente),
+      };
 
-      setBonoburBalance(data);
+      setBonoburBalance(normalizedResponse);
       if (shouldRemember) {
         setSavedBonoburCard(normalizedCard);
         setBonoburRememberCard(true);
@@ -1322,6 +1371,7 @@ export function TransitDashboard() {
           : "Servicio BONOBUR temporalmente no disponible.",
       );
     } finally {
+      window.clearTimeout(timeoutId);
       setBonoburLoading(false);
     }
   }
