@@ -25,6 +25,8 @@ const FAVORITE_STOPS_STORAGE_KEY = "bus-burgos-favorite-stops";
 const DEFAULT_INFO_PANEL_MINIMIZED_STORAGE_KEY =
   "bus-burgos-default-info-panel-minimized";
 const NEARBY_STOP_RADIUS_METERS = 1000;
+const INITIAL_LINES_RETRY_ATTEMPTS = 3;
+const INITIAL_LINES_RETRY_DELAY_MS = 1400;
 
 type FavoriteStop = {
   id: string;
@@ -385,26 +387,51 @@ export function TransitDashboard() {
   useEffect(() => {
     let isMounted = true;
 
+    function waitForRetry(delayMs: number) {
+      return new Promise<void>((resolve) => {
+        window.setTimeout(resolve, delayMs);
+      });
+    }
+
     async function loadLines() {
       setLoading(true);
+      setLineError(null);
+      let lastError: unknown = null;
       try {
-        const response = await fetch("/api/lines");
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar las lineas.");
-        }
-        const data = (await response.json()) as Line[];
-        if (!isMounted) {
-          return;
-        }
-        setLines(data);
-        if (data.length > 0) {
-          const savedLineId = lastSelectedLineIdRef.current;
-          const restoredLineId = savedLineId
-            ? data.find((line) => line.id === savedLineId)?.id
-            : null;
+        for (
+          let attempt = 1;
+          attempt <= INITIAL_LINES_RETRY_ATTEMPTS;
+          attempt += 1
+        ) {
+          try {
+            const response = await fetch("/api/lines");
+            if (!response.ok) {
+              throw new Error("No se pudieron cargar las lineas.");
+            }
+            const data = (await response.json()) as Line[];
+            if (!isMounted) {
+              return;
+            }
+            setLines(data);
+            if (data.length > 0) {
+              const savedLineId = lastSelectedLineIdRef.current;
+              const restoredLineId = savedLineId
+                ? data.find((line) => line.id === savedLineId)?.id
+                : null;
 
-          setSelectedLineId(restoredLineId ?? data[0].id);
+              setSelectedLineId(restoredLineId ?? data[0].id);
+            }
+            return;
+          } catch (error) {
+            lastError = error;
+            if (attempt < INITIAL_LINES_RETRY_ATTEMPTS) {
+              await waitForRetry(INITIAL_LINES_RETRY_DELAY_MS);
+              continue;
+            }
+          }
         }
+
+        throw lastError ?? new Error("No se pudieron cargar las lineas.");
       } catch (error) {
         if (!isMounted) {
           return;
@@ -1292,6 +1319,10 @@ export function TransitDashboard() {
                           )}
                         </option>
                       ))
+                    ) : loading ? (
+                      <option value="" disabled>
+                        Cargando lineas...
+                      </option>
                     ) : (
                       <option value="" disabled>
                         No hay lineas en servicio ahora
