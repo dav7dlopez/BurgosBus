@@ -1344,7 +1344,12 @@ export function TransitDashboard() {
                         : "Mostrar solo lineas en servicio"
                     }
                   >
-                    <span className="favorite-toggle__label">Ver activas</span>
+                    <span className="favorite-toggle__label favorite-toggle__label--desktop">
+                      Ver activas
+                    </span>
+                    <span className="favorite-toggle__label favorite-toggle__label--mobile">
+                      Activas
+                    </span>
                   </button>
                 </div>
               </div>

@@ -590,6 +590,10 @@ a {
   white-space: nowrap;
 }
 
+.favorite-toggle__label--mobile {
+  display: none;
+}
+
 .favorite-toggle__icon,
 .favorite-line-chip__icon {
   line-height: 1;
@@ -2540,11 +2544,30 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .line-filter-toggle {
-    min-width: 96px;
+    min-width: 80px;
+    padding: 0 8px;
   }
 
   .line-filter-toggle .favorite-toggle__label,
   .live-tracking-toggle .favorite-toggle__label {
+    display: inline;
+  }
+
+  .line-picker__favorite {
+    min-width: 38px;
+    width: 38px;
+    padding: 0 8px;
+  }
+
+  .line-picker__favorite .favorite-toggle__icon {
+    font-size: 0.95rem;
+  }
+
+  .line-filter-toggle .favorite-toggle__label--desktop {
+    display: none;
+  }
+
+  .line-filter-toggle .favorite-toggle__label--mobile {
     display: inline;
   }
 
