@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 const BONOBUR_UPSTREAM_BALANCE_URL =
   "https://bonobur.aytoburgos.es:8443/api/cargasaldo/comprobar";
-const BONOBUR_TIMEOUT_MS = 7000;
+const BONOBUR_TIMEOUT_MS = 15000;
 
 type UpstreamBalancePayload = {
   respuesta?: unknown;
