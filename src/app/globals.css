@@ -297,6 +297,17 @@ a {
   margin-left: auto;
 }
 
+.topbar-theme-mode {
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .theme-switch {
   position: relative;
   display: inline-grid;
@@ -2271,6 +2282,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .topbar-head {
+    position: relative;
     display: grid;
     grid-template-columns: 1fr;
     gap: 6px;
@@ -2280,6 +2292,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .brand-lockup {
     min-width: 0;
     max-width: none;
+    padding-right: 116px;
   }
 
   .brand-lockup h1 {
@@ -2298,20 +2311,42 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .theme-toggle {
     width: 100%;
     max-width: none;
+    margin-left: 0;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   .favorite-toggle__label {
     display: none;
   }
 
-  .theme-toggle {
-    flex-shrink: 0;
-    padding: 3px;
-    gap: 4px;
+  .topbar-theme-mode {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 3;
+  }
+
+  .topbar-quick-actions {
+    display: inline-flex;
     align-items: center;
-    justify-content: flex-start;
-    flex-wrap: nowrap;
+    gap: 4px;
+    width: 100%;
+    padding: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-elevated) 46%, transparent);
+    border: 1px solid var(--border);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.38),
+      0 8px 16px rgba(15, 23, 42, 0.1);
+    backdrop-filter: blur(24px) saturate(174%);
     overflow: hidden;
+    position: relative;
+    z-index: 1;
   }
 
   .theme-toggle__button {
@@ -2355,6 +2390,19 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .theme-toggle__utility-label {
     font-size: 0.7rem;
     letter-spacing: 0.01em;
+  }
+
+  html[data-theme="dark"] .theme-toggle {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    backdrop-filter: none !important;
+  }
+
+  html[data-theme="dark"] .topbar-theme-mode {
+    top: 0;
+    right: 0;
+    z-index: 3;
   }
 
   .field {

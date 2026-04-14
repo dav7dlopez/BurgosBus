@@ -1145,118 +1145,122 @@ export function TransitDashboard() {
           </div>
 
           <div className="theme-toggle" aria-label="Selector de tema">
-            <div
-              className="theme-switch"
-              data-active-theme={theme}
-              role="group"
-              aria-label="Selector de tema visual"
-            >
-              <span className="theme-switch__thumb" aria-hidden="true" />
+            <div className="topbar-theme-mode">
+              <div
+                className="theme-switch"
+                data-active-theme={theme}
+                role="group"
+                aria-label="Selector de tema visual"
+              >
+                <span className="theme-switch__thumb" aria-hidden="true" />
+                <button
+                  type="button"
+                  className={`theme-toggle__button theme-toggle__button--mode${
+                    theme === "light" ? " is-active" : ""
+                  }`}
+                  aria-label="Activar modo claro"
+                  title="Modo claro"
+                  onClick={() => setTheme("light")}
+                >
+                  <IconSun
+                    size={15}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                    focusable="false"
+                    className="theme-toggle__icon theme-toggle__icon--mode"
+                  />
+                </button>
+                <button
+                  type="button"
+                  className={`theme-toggle__button theme-toggle__button--mode${
+                    theme === "dark" ? " is-active" : ""
+                  }`}
+                  aria-label="Activar modo oscuro"
+                  title="Modo oscuro"
+                  onClick={() => setTheme("dark")}
+                >
+                  <IconMoon
+                    size={15}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                    focusable="false"
+                    className="theme-toggle__icon theme-toggle__icon--mode"
+                  />
+                </button>
+              </div>
+            </div>
+            <div className="topbar-quick-actions">
               <button
                 type="button"
-                className={`theme-toggle__button theme-toggle__button--mode${
-                  theme === "light" ? " is-active" : ""
-                }`}
-                aria-label="Activar modo claro"
-                title="Modo claro"
-                onClick={() => setTheme("light")}
+                className={`theme-toggle__button theme-toggle__button--gps${locationEnabled ? " is-active" : " is-off"}`}
+                aria-label={
+                  locationEnabled ? "Desactivar ubicacion" : "Activar ubicacion"
+                }
+                title={locationEnabled ? "Ubicacion activada" : "Activar ubicacion"}
+                onClick={() => {
+                  setLocationEnabled((current) => !current);
+                  setFocusUserLocationSignal((current) => current + 1);
+                }}
               >
-                <IconSun
-                  size={15}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                  focusable="false"
-                  className="theme-toggle__icon theme-toggle__icon--mode"
-                />
+                <span className="theme-toggle__utility-label">GPS</span>
               </button>
               <button
                 type="button"
-                className={`theme-toggle__button theme-toggle__button--mode${
-                  theme === "dark" ? " is-active" : ""
-                }`}
-                aria-label="Activar modo oscuro"
-                title="Modo oscuro"
-                onClick={() => setTheme("dark")}
+                className={`theme-toggle__button theme-toggle__button--nearby${nearbyModeEnabled ? " is-active" : ""}`}
+                aria-label={
+                  nearbyModeEnabled
+                    ? "Ocultar paradas cercanas"
+                    : "Mostrar paradas cercanas"
+                }
+                title={
+                  nearbyModeEnabled
+                    ? "Ocultar paradas cercanas"
+                    : "Mostrar paradas cercanas"
+                }
+                onClick={() => {
+                  setLocationEnabled(true);
+                  setNearbyModeEnabled((current) => !current);
+                  setFocusNearbyStopsSignal((current) => current + 1);
+                }}
               >
-                <IconMoon
-                  size={15}
+                <IconBusStop
+                  size={14}
                   strokeWidth={2}
                   aria-hidden="true"
                   focusable="false"
-                  className="theme-toggle__icon theme-toggle__icon--mode"
+                  className="theme-toggle__icon"
                 />
+                <span className="theme-toggle__utility-label">Cerca</span>
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle__button theme-toggle__button--favorites${
+                  favoriteStopsPanelOpen ? " is-active" : ""
+                }`}
+                aria-label={
+                  favoriteStopsPanelOpen
+                    ? "Ocultar paradas favoritas"
+                    : "Mostrar paradas favoritas"
+                }
+                aria-expanded={favoriteStopsPanelOpen}
+                aria-controls="favorite-stops-panel"
+                title={
+                  favoriteStopsPanelOpen
+                    ? "Ocultar paradas favoritas"
+                    : "Mostrar paradas favoritas"
+                }
+                onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
+              >
+                <IconBusStop
+                  size={14}
+                  strokeWidth={2}
+                  aria-hidden="true"
+                  focusable="false"
+                  className="theme-toggle__icon"
+                />
+                <span className="theme-toggle__utility-label">Fav.</span>
               </button>
             </div>
-            <button
-              type="button"
-              className={`theme-toggle__button theme-toggle__button--gps${locationEnabled ? " is-active" : " is-off"}`}
-              aria-label={
-                locationEnabled ? "Desactivar ubicacion" : "Activar ubicacion"
-              }
-              title={locationEnabled ? "Ubicacion activada" : "Activar ubicacion"}
-              onClick={() => {
-                setLocationEnabled((current) => !current);
-                setFocusUserLocationSignal((current) => current + 1);
-              }}
-            >
-              <span className="theme-toggle__utility-label">GPS</span>
-            </button>
-            <button
-              type="button"
-              className={`theme-toggle__button theme-toggle__button--nearby${nearbyModeEnabled ? " is-active" : ""}`}
-              aria-label={
-                nearbyModeEnabled
-                  ? "Ocultar paradas cercanas"
-                  : "Mostrar paradas cercanas"
-              }
-              title={
-                nearbyModeEnabled
-                  ? "Ocultar paradas cercanas"
-                  : "Mostrar paradas cercanas"
-              }
-              onClick={() => {
-                setLocationEnabled(true);
-                setNearbyModeEnabled((current) => !current);
-                setFocusNearbyStopsSignal((current) => current + 1);
-              }}
-            >
-              <IconBusStop
-                size={14}
-                strokeWidth={2}
-                aria-hidden="true"
-                focusable="false"
-                className="theme-toggle__icon"
-              />
-              <span className="theme-toggle__utility-label">Cerca</span>
-            </button>
-            <button
-              type="button"
-              className={`theme-toggle__button theme-toggle__button--favorites${
-                favoriteStopsPanelOpen ? " is-active" : ""
-              }`}
-              aria-label={
-                favoriteStopsPanelOpen
-                  ? "Ocultar paradas favoritas"
-                  : "Mostrar paradas favoritas"
-              }
-              aria-expanded={favoriteStopsPanelOpen}
-              aria-controls="favorite-stops-panel"
-              title={
-                favoriteStopsPanelOpen
-                  ? "Ocultar paradas favoritas"
-                  : "Mostrar paradas favoritas"
-              }
-              onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
-            >
-              <IconBusStop
-                size={14}
-                strokeWidth={2}
-                aria-hidden="true"
-                focusable="false"
-                className="theme-toggle__icon"
-              />
-              <span className="theme-toggle__utility-label">Fav.</span>
-            </button>
           </div>
         </div>
 
