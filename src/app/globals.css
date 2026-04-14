@@ -91,6 +91,7 @@ a {
 
 .app-shell {
   min-height: 100svh;
+  min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 8px;
@@ -2260,7 +2261,8 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 @media (max-width: 720px) {
   .app-shell {
     gap: 6px;
-    padding: 6px;
+    padding: 6px 6px 0;
+    min-height: 100dvh;
   }
 
   .topbar {
@@ -2269,19 +2271,24 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .topbar-head {
-    gap: 8px;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    align-items: stretch;
   }
 
   .brand-lockup {
     min-width: 0;
+    max-width: none;
   }
 
   .brand-lockup h1 {
-    font-size: 1.02rem;
+    font-size: 1.04rem;
     white-space: nowrap;
-    line-height: 1.1;
-    padding-bottom: 2px;
+    line-height: 1.12;
+    padding-bottom: 1px;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .eyebrow {
@@ -2289,8 +2296,8 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .theme-toggle {
-    width: auto;
-    max-width: calc(100vw - 128px);
+    width: 100%;
+    max-width: none;
   }
 
   .favorite-toggle__label {
@@ -2302,41 +2309,52 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
     padding: 3px;
     gap: 4px;
     align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .theme-toggle__button {
     min-width: 0;
     height: 32px;
-    padding: 0 9px;
-    font-size: 0.72rem;
+    padding: 0 8px;
+    font-size: 0.7rem;
     line-height: 1;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
   }
 
   .theme-switch {
-    min-width: 132px;
+    min-width: 108px;
     height: 32px;
     padding: 2px;
     align-self: center;
+    flex: 0 0 108px;
   }
 
   .theme-toggle__button--mode {
-    padding: 0 11px;
+    padding: 0 8px;
     height: 100%;
     align-self: center;
   }
 
   .theme-toggle__button--favorites {
-    min-width: 74px;
+    min-width: 62px;
   }
 
   .theme-toggle__button--nearby {
-    min-width: 82px;
+    min-width: 72px;
   }
 
   .theme-toggle__button--gps {
-    min-width: 42px;
+    min-width: 44px;
+    padding: 0 10px;
+  }
+
+  .theme-toggle__utility-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.01em;
   }
 
   .field {

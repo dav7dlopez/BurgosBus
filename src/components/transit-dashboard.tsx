@@ -1227,7 +1227,7 @@ export function TransitDashboard() {
                 focusable="false"
                 className="theme-toggle__icon"
               />
-              <span className="theme-toggle__utility-label"> Cercanas</span>
+              <span className="theme-toggle__utility-label">Cerca</span>
             </button>
             <button
               type="button"
@@ -1255,7 +1255,7 @@ export function TransitDashboard() {
                 focusable="false"
                 className="theme-toggle__icon"
               />
-              <span className="theme-toggle__utility-label"> Fav.</span>
+              <span className="theme-toggle__utility-label">Fav.</span>
             </button>
           </div>
         </div>
