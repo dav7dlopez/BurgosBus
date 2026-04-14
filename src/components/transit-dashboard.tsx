@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { IconBusStop, IconMoon, IconSun } from "@tabler/icons-react";
 
 import { mapProviders } from "@/lib/map-config";
 import type {
@@ -1160,7 +1161,13 @@ export function TransitDashboard() {
                 title="Modo claro"
                 onClick={() => setTheme("light")}
               >
-                Claro
+                <IconSun
+                  size={15}
+                  strokeWidth={2}
+                  aria-hidden="true"
+                  focusable="false"
+                  className="theme-toggle__icon theme-toggle__icon--mode"
+                />
               </button>
               <button
                 type="button"
@@ -1171,7 +1178,13 @@ export function TransitDashboard() {
                 title="Modo oscuro"
                 onClick={() => setTheme("dark")}
               >
-                Oscuro
+                <IconMoon
+                  size={15}
+                  strokeWidth={2}
+                  aria-hidden="true"
+                  focusable="false"
+                  className="theme-toggle__icon theme-toggle__icon--mode"
+                />
               </button>
             </div>
             <button
@@ -1207,8 +1220,14 @@ export function TransitDashboard() {
                 setFocusNearbyStopsSignal((current) => current + 1);
               }}
             >
-              <span aria-hidden="true">◎</span>
-              <span className="theme-toggle__utility-label">Cercanas</span>
+              <IconBusStop
+                size={14}
+                strokeWidth={2}
+                aria-hidden="true"
+                focusable="false"
+                className="theme-toggle__icon"
+              />
+              <span className="theme-toggle__utility-label"> Cercanas</span>
             </button>
             <button
               type="button"
@@ -1229,8 +1248,14 @@ export function TransitDashboard() {
               }
               onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
             >
-              <span aria-hidden="true">★</span>
-              <span className="theme-toggle__utility-label">Favoritas</span>
+              <IconBusStop
+                size={14}
+                strokeWidth={2}
+                aria-hidden="true"
+                focusable="false"
+                className="theme-toggle__icon"
+              />
+              <span className="theme-toggle__utility-label"> Fav.</span>
             </button>
           </div>
         </div>
