@@ -50,6 +50,7 @@ html[data-theme="dark"] {
 
 html,
 body {
+  height: 100%;
   margin: 0;
   padding: 0;
   background:
@@ -63,7 +64,7 @@ body {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -90,12 +91,12 @@ a {
 }
 
 .app-shell {
+  height: 100dvh;
   min-height: 100svh;
-  min-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
-  padding: 8px;
+  padding: 8px 8px 0;
 }
 
 .topbar {
@@ -673,6 +674,7 @@ a {
 .map-stage {
   position: relative;
   min-height: 0;
+  height: 100%;
   border-radius: 34px;
   overflow: hidden;
   box-shadow:
@@ -2273,7 +2275,8 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .app-shell {
     gap: 6px;
     padding: 6px 6px 0;
-    min-height: 100dvh;
+    height: 100dvh;
+    min-height: 100svh;
   }
 
   .topbar {
