@@ -1203,6 +1203,9 @@ export function TransitDashboard() {
                 }}
               >
                 <span className="theme-toggle__utility-label">GPS</span>
+                <span className="theme-toggle__utility-state" aria-hidden="true">
+                  {locationEnabled ? "ON" : "OFF"}
+                </span>
               </button>
               <button
                 type="button"
