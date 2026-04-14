@@ -19,6 +19,10 @@ const JSON_HEADERS = {
 const STATIC_TTL_MS = 1000 * 60 * 60;
 const ROUTE_TTL_MS = 1000 * 60 * 30;
 const REALTIME_TTL_MS = 1000 * 10;
+const UPSTREAM_TIMEOUT_MS = 7000;
+const UPSTREAM_MAX_ATTEMPTS = 2;
+const UPSTREAM_RETRY_DELAY_MS = 450;
+const UPSTREAM_SLOW_REQUEST_MS = 2500;
 
 type RawStop = {
   tipo: number | string | null;
@@ -81,27 +85,150 @@ function buildResourceUrl(resourceId: string, params: Record<string, string>) {
   return `${DIRECT_URL}?${search.toString()}`;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: JSON_HEADERS,
-    next: { revalidate: 0 },
-  });
+class UpstreamHttpError extends Error {
+  status: number;
 
-  if (!response.ok) {
-    throw new Error(`Municipal upstream failed (${response.status}) for ${url}`);
+  constructor(status: number, url: string) {
+    super(`Municipal upstream failed (${status}) for ${url}`);
+    this.name = "UpstreamHttpError";
+    this.status = status;
   }
+}
+
+function getUpstreamRequestMeta(url: string) {
+  try {
+    const parsed = new URL(url);
+    const resourceId = parsed.searchParams.get("p_p_resource_id");
+    const lineLabel = parsed.searchParams.get(
+      "_as_asac_isaenext_IsaenextWebPortlet_label",
+    );
+
+    return {
+      host: parsed.host,
+      path: parsed.pathname,
+      resourceId: resourceId ?? "rutas-en-directo",
+      lineLabel: lineLabel ?? null,
+    };
+  } catch {
+    return {
+      host: BASE_URL,
+      path: "/rutas-en-directo",
+      resourceId: "unknown",
+      lineLabel: null,
+    };
+  }
+}
+
+function logUpstreamWarning(event: string, payload: Record<string, unknown>) {
+  console.warn("[burgos-upstream]", event, payload);
+}
+
+function logUpstreamError(event: string, payload: Record<string, unknown>) {
+  console.error("[burgos-upstream]", event, payload);
+}
+
+function waitForRetry(delayMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+function isRetryableUpstreamError(error: unknown) {
+  if (error instanceof UpstreamHttpError) {
+    return error.status >= 500 || error.status === 429;
+  }
+
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  if (error instanceof Error) {
+    return error.name === "AbortError";
+  }
+
+  return false;
+}
+
+async function fetchWithResilience(url: string, init?: RequestInit) {
+  let lastError: unknown = null;
+  const meta = getUpstreamRequestMeta(url);
+
+  for (let attempt = 1; attempt <= UPSTREAM_MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const requestStartMs = Date.now();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, UPSTREAM_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        ...init,
+        next: { revalidate: 0 },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new UpstreamHttpError(response.status, url);
+      }
+
+      const durationMs = Date.now() - requestStartMs;
+      if (attempt > 1 || durationMs >= UPSTREAM_SLOW_REQUEST_MS) {
+        logUpstreamWarning("request_slow_or_retried", {
+          ...meta,
+          attempt,
+          durationMs,
+          status: response.status,
+        });
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error;
+      const hasMoreAttempts = attempt < UPSTREAM_MAX_ATTEMPTS;
+      const durationMs = Date.now() - requestStartMs;
+      const retryable = isRetryableUpstreamError(error);
+
+      if (hasMoreAttempts && retryable) {
+        logUpstreamWarning("request_retry", {
+          ...meta,
+          attempt,
+          durationMs,
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      } else {
+        logUpstreamError("request_failed", {
+          ...meta,
+          attempt,
+          durationMs,
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      if (!hasMoreAttempts || !retryable) {
+        throw error;
+      }
+
+      await waitForRetry(UPSTREAM_RETRY_DELAY_MS);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw lastError ?? new Error(`Municipal upstream failed for ${url}`);
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetchWithResilience(url, {
+    headers: JSON_HEADERS,
+  });
 
   return response.json() as Promise<T>;
 }
 
 async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url, {
-    next: { revalidate: 0 },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Municipal upstream failed (${response.status}) for ${url}`);
-  }
+  const response = await fetchWithResilience(url);
 
   return response.text();
 }
@@ -207,7 +334,7 @@ export async function getLines(): Promise<Line[]> {
 export async function getLinesWithActivity(): Promise<Line[]> {
   return withCache("lines-with-activity", REALTIME_TTL_MS, async () => {
     const lines = await getLines();
-    const activityByLine = await Promise.all(
+    const activityByLine = await Promise.allSettled(
       lines.map(async (line) => {
         const { vehicles } = await getVehiclesByLine(line.id);
         return {
@@ -217,9 +344,14 @@ export async function getLinesWithActivity(): Promise<Line[]> {
       }),
     );
 
-    const activityIndex = new Map(
-      activityByLine.map((entry) => [entry.lineId, entry.activeVehicleCount]),
-    );
+    const activityIndex = new Map<string, number>();
+    for (const result of activityByLine) {
+      if (result.status !== "fulfilled") {
+        continue;
+      }
+
+      activityIndex.set(result.value.lineId, result.value.activeVehicleCount);
+    }
 
     return lines.map((line) => {
       const activeVehicleCount = activityIndex.get(line.id) ?? 0;
