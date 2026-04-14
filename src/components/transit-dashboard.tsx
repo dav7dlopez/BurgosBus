@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { IconBusStop, IconMoon, IconSun } from "@tabler/icons-react";
+import { IconBusStop, IconCreditCard, IconMoon, IconSun } from "@tabler/icons-react";
 
 import { mapProviders } from "@/lib/map-config";
 import type {
@@ -27,6 +27,25 @@ const DEFAULT_INFO_PANEL_MINIMIZED_STORAGE_KEY =
 const NEARBY_STOP_RADIUS_METERS = 1000;
 const INITIAL_LINES_RETRY_ATTEMPTS = 3;
 const INITIAL_LINES_RETRY_DELAY_MS = 1400;
+const BONOBUR_CARD_STORAGE_KEY = "bus-burgos-bonobur-card";
+
+type BonoburBalanceSuccess = {
+  ok: true;
+  status: "success";
+  observedAt: string;
+  balanceEuros: number | null;
+  validity: string | null;
+  pendingTopUpEuros: number | null;
+  pendingTopUpDate: string | null;
+};
+
+type BonoburBalanceFailure = {
+  ok: false;
+  status: "functional_error" | "technical_error";
+  message: string;
+};
+
+type BonoburBalanceResponse = BonoburBalanceSuccess | BonoburBalanceFailure;
 
 type FavoriteStop = {
   id: string;
@@ -176,6 +195,20 @@ function formatEtaLabel(etaSeconds: number) {
   return `${minutes} min`;
 }
 
+function maskBonoburCard(cardNumber: string) {
+  const lastDigits = cardNumber.slice(-4);
+  return `**** **** ${lastDigits}`;
+}
+
+function formatBonoburEuros(value: number) {
+  return value.toLocaleString("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 type FollowedVehicleStopState =
   | {
       mode: "real";
@@ -229,6 +262,19 @@ export function TransitDashboard() {
   const [loading, setLoading] = useState(true);
   const [lineError, setLineError] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [bonoburPanelOpen, setBonoburPanelOpen] = useState(false);
+  const [bonoburCardInput, setBonoburCardInput] = useState("");
+  const [bonoburRememberCard, setBonoburRememberCard] = useState(false);
+  const [savedBonoburCard, setSavedBonoburCard] = useState<string | null>(null);
+  const [bonoburEditingCard, setBonoburEditingCard] = useState(false);
+  const [bonoburLoading, setBonoburLoading] = useState(false);
+  const [bonoburError, setBonoburError] = useState<string | null>(null);
+  const [bonoburFunctionalError, setBonoburFunctionalError] = useState<
+    string | null
+  >(null);
+  const [bonoburBalance, setBonoburBalance] = useState<BonoburBalanceSuccess | null>(
+    null,
+  );
   const geolocationWatchId = useRef<number | null>(null);
   const lastSelectedLineIdRef = useRef<string | null>(null);
   const lastVehicleTrackingLineIdRef = useRef<string | null>(null);
@@ -238,6 +284,8 @@ export function TransitDashboard() {
   const previousUnfilteredLineIdRef = useRef<string | null>(null);
   const preserveSelectedStopRef = useRef<Stop | null>(null);
   const pendingFavoriteStopIdRef = useRef<string | null>(null);
+  const bonoburMenuRef = useRef<HTMLDivElement | null>(null);
+  const bonoburAutoHydratedCardRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -383,6 +431,64 @@ export function TransitDashboard() {
       JSON.stringify(favoriteStops),
     );
   }, [favoriteStops]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedCard = window.localStorage.getItem(BONOBUR_CARD_STORAGE_KEY);
+    if (!storedCard) {
+      return;
+    }
+
+    const normalized = storedCard.trim().replace(/\s+/g, "");
+    if (!/^\d{10,13}$/.test(normalized)) {
+      window.localStorage.removeItem(BONOBUR_CARD_STORAGE_KEY);
+      return;
+    }
+
+    setSavedBonoburCard(normalized);
+    setBonoburRememberCard(true);
+  }, []);
+
+  useEffect(() => {
+    if (!bonoburPanelOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent | TouchEvent) {
+      if (
+        bonoburMenuRef.current &&
+        event.target instanceof Node &&
+        !bonoburMenuRef.current.contains(event.target)
+      ) {
+        setBonoburPanelOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [bonoburPanelOpen]);
+
+  useEffect(() => {
+    if (!savedBonoburCard) {
+      bonoburAutoHydratedCardRef.current = null;
+      return;
+    }
+
+    if (bonoburAutoHydratedCardRef.current === savedBonoburCard) {
+      return;
+    }
+
+    bonoburAutoHydratedCardRef.current = savedBonoburCard;
+    void fetchBonoburBalance(savedBonoburCard, true);
+  }, [savedBonoburCard]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1162,6 +1268,101 @@ export function TransitDashboard() {
     setShowActiveLinesOnly(true);
   }
 
+  async function fetchBonoburBalance(cardNumber: string, shouldRemember: boolean) {
+    const normalizedCard = cardNumber.trim().replace(/\s+/g, "");
+    setBonoburLoading(true);
+    setBonoburError(null);
+    setBonoburFunctionalError(null);
+
+    try {
+      const response = await fetch("/api/bonobur/balance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ numeroTarjeta: normalizedCard }),
+      });
+
+      const data = (await response.json()) as BonoburBalanceResponse;
+      if (!response.ok) {
+        throw new Error(
+          data.ok ? "No se pudo consultar el saldo BONOBUR." : data.message,
+        );
+      }
+
+      if (!data.ok) {
+        if (data.status === "functional_error") {
+          setBonoburFunctionalError(data.message);
+          setBonoburBalance(null);
+          return;
+        }
+
+        throw new Error(data.message);
+      }
+
+      setBonoburBalance(data);
+      if (shouldRemember) {
+        setSavedBonoburCard(normalizedCard);
+        setBonoburRememberCard(true);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(BONOBUR_CARD_STORAGE_KEY, normalizedCard);
+        }
+        setBonoburEditingCard(false);
+      } else {
+        setSavedBonoburCard(null);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(BONOBUR_CARD_STORAGE_KEY);
+        }
+      }
+    } catch (error) {
+      setBonoburBalance(null);
+      setBonoburError(
+        error instanceof Error
+          ? error.message
+          : "Servicio BONOBUR temporalmente no disponible.",
+      );
+    } finally {
+      setBonoburLoading(false);
+    }
+  }
+
+  function handleBonoburSubmit() {
+    void fetchBonoburBalance(bonoburCardInput, bonoburRememberCard);
+  }
+
+  function handleBonoburRefresh() {
+    const cardForQuery =
+      !bonoburEditingCard && savedBonoburCard ? savedBonoburCard : bonoburCardInput;
+
+    if (!cardForQuery.trim()) {
+      setBonoburError("Introduce el número de tarjeta BONOBUR.");
+      setBonoburFunctionalError(null);
+      return;
+    }
+
+    void fetchBonoburBalance(cardForQuery, !bonoburEditingCard && !!savedBonoburCard);
+  }
+
+  function clearBonoburStoredCard() {
+    setSavedBonoburCard(null);
+    setBonoburEditingCard(false);
+    setBonoburCardInput("");
+    setBonoburRememberCard(false);
+    setBonoburBalance(null);
+    setBonoburError(null);
+    setBonoburFunctionalError(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(BONOBUR_CARD_STORAGE_KEY);
+    }
+  }
+
+  const bonoburButtonBalanceLabel =
+    savedBonoburCard &&
+    bonoburBalance &&
+    bonoburBalance.balanceEuros !== null
+      ? formatBonoburEuros(bonoburBalance.balanceEuros)
+      : null;
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -1214,6 +1415,161 @@ export function TransitDashboard() {
                     className="theme-toggle__icon theme-toggle__icon--mode"
                   />
                 </button>
+              </div>
+              <div className="bonobur-menu" ref={bonoburMenuRef}>
+                <button
+                  type="button"
+                  className={`theme-toggle__button theme-toggle__button--bonobur${
+                    bonoburPanelOpen ? " is-active" : ""
+                  }${
+                    bonoburButtonBalanceLabel ? " is-balance" : ""
+                  }`}
+                  aria-label="Consultar saldo BONOBUR"
+                  aria-expanded={bonoburPanelOpen}
+                  aria-controls="bonobur-popover"
+                  title={
+                    bonoburButtonBalanceLabel
+                      ? `Saldo BONOBUR: ${bonoburButtonBalanceLabel}`
+                      : "Consultar saldo BONOBUR"
+                  }
+                  onClick={() => setBonoburPanelOpen((current) => !current)}
+                >
+                  {bonoburButtonBalanceLabel ? (
+                    <span className="theme-toggle__bonobur-balance">
+                      {bonoburButtonBalanceLabel}
+                    </span>
+                  ) : (
+                    <IconCreditCard
+                      size={15}
+                      strokeWidth={2}
+                      aria-hidden="true"
+                      focusable="false"
+                      className="theme-toggle__icon"
+                    />
+                  )}
+                </button>
+                {bonoburPanelOpen ? (
+                  <div
+                    id="bonobur-popover"
+                    className="bonobur-popover"
+                    role="dialog"
+                    aria-label="Panel de saldo BONOBUR"
+                  >
+                    <span className="bonobur-popover__eyebrow">BONOBUR</span>
+                    <strong className="bonobur-popover__title">Consulta de saldo</strong>
+                    {savedBonoburCard && !bonoburEditingCard ? (
+                      <div className="bonobur-popover__saved-card">
+                        <span className="bonobur-popover__label">Tarjeta guardada</span>
+                        <strong>{maskBonoburCard(savedBonoburCard)}</strong>
+                        <button
+                          type="button"
+                          className="bonobur-popover__link"
+                          onClick={() => {
+                            setBonoburEditingCard(true);
+                            setBonoburFunctionalError(null);
+                            setBonoburError(null);
+                          }}
+                        >
+                          Usar otra tarjeta
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bonobur-popover__field">
+                        <label htmlFor="bonobur-card-input">Número de tarjeta</label>
+                        <input
+                          id="bonobur-card-input"
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder="Solo dígitos"
+                          value={bonoburCardInput}
+                          onChange={(event) => {
+                            setBonoburCardInput(event.target.value.replace(/[^\d]/g, ""));
+                            setBonoburError(null);
+                            setBonoburFunctionalError(null);
+                          }}
+                        />
+                        <label className="bonobur-popover__remember">
+                          <input
+                            type="checkbox"
+                            checked={bonoburRememberCard}
+                            onChange={(event) =>
+                              setBonoburRememberCard(event.target.checked)
+                            }
+                          />
+                          <span>Recordar en este dispositivo</span>
+                        </label>
+                      </div>
+                    )}
+
+                    {bonoburBalance ? (
+                      <div className="bonobur-popover__result bonobur-popover__result--success">
+                        <span className="bonobur-popover__label">Saldo actual</span>
+                        <strong>
+                          {bonoburBalance.balanceEuros !== null
+                            ? formatBonoburEuros(bonoburBalance.balanceEuros)
+                            : "No disponible"}
+                        </strong>
+                        {bonoburBalance.pendingTopUpEuros !== null ? (
+                          <span className="bonobur-popover__meta">
+                            Recarga pendiente:{" "}
+                            {formatBonoburEuros(bonoburBalance.pendingTopUpEuros)}
+                          </span>
+                        ) : null}
+                        <span className="bonobur-popover__meta">
+                          Última actualización:{" "}
+                          {new Date(bonoburBalance.observedAt).toLocaleTimeString("es-ES", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {bonoburFunctionalError ? (
+                      <div className="bonobur-popover__result bonobur-popover__result--warning">
+                        {bonoburFunctionalError}
+                      </div>
+                    ) : null}
+                    {bonoburError ? (
+                      <div className="bonobur-popover__result bonobur-popover__result--error">
+                        {bonoburError}
+                      </div>
+                    ) : null}
+
+                    <div className="bonobur-popover__actions">
+                      {!savedBonoburCard || bonoburEditingCard ? (
+                        <button
+                          type="button"
+                          className="bonobur-popover__button"
+                          onClick={handleBonoburSubmit}
+                          disabled={bonoburLoading}
+                        >
+                          {bonoburLoading ? "Consultando..." : "Consultar saldo"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="bonobur-popover__button"
+                          onClick={handleBonoburRefresh}
+                          disabled={bonoburLoading}
+                        >
+                          {bonoburLoading ? "Actualizando..." : "Actualizar"}
+                        </button>
+                      )}
+                      {savedBonoburCard ? (
+                        <button
+                          type="button"
+                          className="bonobur-popover__button bonobur-popover__button--secondary"
+                          onClick={clearBonoburStoredCard}
+                          disabled={bonoburLoading}
+                        >
+                          Olvidar tarjeta
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="topbar-quick-actions">
