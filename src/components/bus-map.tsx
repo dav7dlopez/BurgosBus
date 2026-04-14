@@ -783,7 +783,11 @@ export function BusMap({
               )}
             >
               {vehicle.vehicleId !== followedVehicleId ? (
-                <Popup closeButton={false} offset={[0, -16]}>
+                <Popup
+                  className="vehicle-follow-popup"
+                  closeButton={false}
+                  offset={[0, -16]}
+                >
                   <div className="vehicle-popup">
                     <button
                       type="button"
