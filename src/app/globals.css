@@ -221,6 +221,29 @@ a {
     inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
+.line-picker--draggable {
+  position: relative;
+  will-change: transform;
+  touch-action: none;
+}
+
+.line-picker--draggable.is-dragging {
+  transition: none;
+  z-index: 6;
+}
+
+.live-tracking-pill--draggable,
+.stop-card--draggable {
+  position: relative;
+  will-change: transform;
+  touch-action: none;
+}
+
+.live-tracking-pill--draggable.is-dragging,
+.stop-card--draggable.is-dragging {
+  z-index: 6;
+}
+
 .line-picker__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -663,12 +686,19 @@ a {
   width: 100%;
 }
 
-.field span {
+.field span,
+.field label {
   font-size: 0.61rem;
   color: var(--muted);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.field label {
+  justify-self: start;
+  display: inline-flex;
+  width: fit-content;
 }
 
 .field--compact {
@@ -2701,7 +2731,8 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
     min-width: 0;
   }
 
-  .field span {
+  .field span,
+  .field label {
     font-size: 0.7rem;
   }
 

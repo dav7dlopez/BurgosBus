@@ -1,7 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { IconBusStop, IconCreditCard, IconMoon, IconSun } from "@tabler/icons-react";
 
 import { mapProviders } from "@/lib/map-config";
@@ -237,6 +246,24 @@ type FollowedVehicleStopState =
     }
   | null;
 
+type LinePickerDragState = {
+  panel: "linePicker" | "liveTrackingPill" | "stopCard";
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  stageLeft: number;
+  stageTop: number;
+  stageRight: number;
+  stageBottom: number;
+  panelStartLeft: number;
+  panelStartTop: number;
+  panelWidth: number;
+  panelHeight: number;
+  startOffsetX: number;
+  startOffsetY: number;
+  hasMoved: boolean;
+};
+
 export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -299,6 +326,22 @@ export function TransitDashboard() {
   const pendingFavoriteStopIdRef = useRef<string | null>(null);
   const bonoburMenuRef = useRef<HTMLDivElement | null>(null);
   const bonoburAutoHydratedCardRef = useRef<string | null>(null);
+  const mapStageRef = useRef<HTMLElement | null>(null);
+  const linePickerRef = useRef<HTMLDivElement | null>(null);
+  const liveTrackingPillRef = useRef<HTMLDivElement | null>(null);
+  const stopCardRef = useRef<HTMLDivElement | null>(null);
+  const linePickerDragStateRef = useRef<LinePickerDragState | null>(null);
+  const [linePickerOffset, setLinePickerOffset] = useState({ x: 0, y: 0 });
+  const [isLinePickerDragging, setIsLinePickerDragging] = useState(false);
+  const [liveTrackingPillOffset, setLiveTrackingPillOffset] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [isLiveTrackingPillDragging, setIsLiveTrackingPillDragging] =
+    useState(false);
+  const [stopCardOffset, setStopCardOffset] = useState({ x: 0, y: 0 });
+  const [isStopCardDragging, setIsStopCardDragging] = useState(false);
+  const suppressClickUntilRef = useRef<number>(0);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -488,6 +531,184 @@ export function TransitDashboard() {
       document.removeEventListener("touchstart", handlePointerDown);
     };
   }, [bonoburPanelOpen]);
+
+  useEffect(() => {
+    if (!isLinePickerDragging && !isLiveTrackingPillDragging && !isStopCardDragging) {
+      return;
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      const dragState = linePickerDragStateRef.current;
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      const deltaX = event.clientX - dragState.startClientX;
+      const deltaY = event.clientY - dragState.startClientY;
+      if (!dragState.hasMoved && Math.hypot(deltaX, deltaY) >= 6) {
+        dragState.hasMoved = true;
+      }
+      const desiredLeft = dragState.panelStartLeft + deltaX;
+      const desiredTop = dragState.panelStartTop + deltaY;
+      const maxLeft = Math.max(
+        dragState.stageLeft,
+        dragState.stageRight - dragState.panelWidth,
+      );
+      const maxTop = Math.max(
+        dragState.stageTop,
+        dragState.stageBottom - dragState.panelHeight,
+      );
+      const clampedLeft = Math.min(Math.max(desiredLeft, dragState.stageLeft), maxLeft);
+      const clampedTop = Math.min(Math.max(desiredTop, dragState.stageTop), maxTop);
+
+      const nextOffset = {
+        x: dragState.startOffsetX + (clampedLeft - dragState.panelStartLeft),
+        y: dragState.startOffsetY + (clampedTop - dragState.panelStartTop),
+      };
+
+      if (dragState.panel === "linePicker") {
+        setLinePickerOffset(nextOffset);
+      } else if (dragState.panel === "liveTrackingPill") {
+        setLiveTrackingPillOffset(nextOffset);
+      } else {
+        setStopCardOffset(nextOffset);
+      }
+    }
+
+    function handlePointerEnd(event: PointerEvent) {
+      const dragState = linePickerDragStateRef.current;
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      linePickerDragStateRef.current = null;
+      if (dragState.panel === "linePicker") {
+        setIsLinePickerDragging(false);
+      } else if (dragState.panel === "liveTrackingPill") {
+        setIsLiveTrackingPillDragging(false);
+      } else {
+        setIsStopCardDragging(false);
+      }
+      if (dragState.hasMoved) {
+        suppressClickUntilRef.current = Date.now() + 220;
+      }
+    }
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, [isLinePickerDragging, isLiveTrackingPillDragging, isStopCardDragging]);
+
+  useEffect(() => {
+    const activeDrag = linePickerDragStateRef.current;
+    if (!activeDrag) {
+      return;
+    }
+
+    if (activeDrag.panel === "liveTrackingPill" && !liveTrackingPillRef.current) {
+      linePickerDragStateRef.current = null;
+      setIsLiveTrackingPillDragging(false);
+    }
+
+    if (activeDrag.panel === "stopCard" && !stopCardRef.current) {
+      linePickerDragStateRef.current = null;
+      setIsStopCardDragging(false);
+    }
+  }, [
+    followedVehicleId,
+    vehicleTrackingNotice,
+    selectedStop,
+    nearbyModeEnabled,
+    nearbyStopsLoading,
+    nearbyStopsResolved,
+    nearbyStops.length,
+    geolocationStatus,
+    isDefaultInfoPanelMinimized,
+  ]);
+
+  function clampAllDraggablePanelsToViewport() {
+    function clampPanelToViewport(
+      panelRef: HTMLDivElement | null,
+      setOffset: (
+        updater: (current: { x: number; y: number }) => { x: number; y: number },
+      ) => void,
+    ) {
+      if (!mapStageRef.current || !panelRef) {
+        return;
+      }
+
+      const stageRect = mapStageRef.current.getBoundingClientRect();
+      const panelRect = panelRef.getBoundingClientRect();
+      let adjustX = 0;
+      let adjustY = 0;
+
+      if (panelRect.left < stageRect.left) {
+        adjustX = stageRect.left - panelRect.left;
+      } else if (panelRect.right > stageRect.right) {
+        adjustX = stageRect.right - panelRect.right;
+      }
+
+      if (panelRect.top < stageRect.top) {
+        adjustY = stageRect.top - panelRect.top;
+      } else if (panelRect.bottom > stageRect.bottom) {
+        adjustY = stageRect.bottom - panelRect.bottom;
+      }
+
+      if (adjustX !== 0 || adjustY !== 0) {
+        setOffset((current) => ({
+          x: current.x + adjustX,
+          y: current.y + adjustY,
+        }));
+      }
+    }
+
+    clampPanelToViewport(linePickerRef.current, setLinePickerOffset);
+    clampPanelToViewport(liveTrackingPillRef.current, setLiveTrackingPillOffset);
+    clampPanelToViewport(stopCardRef.current, setStopCardOffset);
+  }
+
+  useEffect(() => {
+    window.addEventListener("resize", clampAllDraggablePanelsToViewport);
+    window.addEventListener("orientationchange", clampAllDraggablePanelsToViewport);
+
+    return () => {
+      window.removeEventListener("resize", clampAllDraggablePanelsToViewport);
+      window.removeEventListener("orientationchange", clampAllDraggablePanelsToViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      clampAllDraggablePanelsToViewport();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    selectedStop,
+    stopPanel,
+    stopError,
+    nearbyModeEnabled,
+    nearbyStopsResolved,
+    nearbyStopsLoading,
+    isNearbyPanelMinimized,
+    isNearbyListExpanded,
+    geolocationStatus,
+    isDefaultInfoPanelMinimized,
+    followedVehicleId,
+    vehicleTrackingNotice,
+    followedVehicleStopState,
+    isLiveTrackingEnabled,
+    liveTrackingRouteId,
+  ]);
 
   useEffect(() => {
     if (!savedBonoburCard) {
@@ -1413,6 +1634,96 @@ export function TransitDashboard() {
       ? formatBonoburEuros(bonoburBalance.balanceEuros)
       : null;
 
+  function startDragForPanel(
+    event: ReactPointerEvent<HTMLDivElement>,
+    panel: "linePicker" | "liveTrackingPill" | "stopCard",
+    panelRef: HTMLDivElement | null,
+    startOffset: { x: number; y: number },
+  ) {
+    if (!mapStageRef.current || !panelRef) {
+      return;
+    }
+
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+
+    const dragOrigin =
+      event.target instanceof Element ? event.target : event.currentTarget;
+    const isInteractiveTarget = Boolean(
+      dragOrigin.closest(
+        "button, select, input, textarea, a, label, [role='button'], [data-no-drag]",
+      ),
+    );
+
+    if (isInteractiveTarget) {
+      return;
+    }
+
+    const stageRect = mapStageRef.current.getBoundingClientRect();
+    const panelRect = panelRef.getBoundingClientRect();
+
+    linePickerDragStateRef.current = {
+      panel,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      stageLeft: stageRect.left,
+      stageTop: stageRect.top,
+      stageRight: stageRect.right,
+      stageBottom: stageRect.bottom,
+      panelStartLeft: panelRect.left,
+      panelStartTop: panelRect.top,
+      panelWidth: panelRect.width,
+      panelHeight: panelRect.height,
+      startOffsetX: startOffset.x,
+      startOffsetY: startOffset.y,
+      hasMoved: false,
+    };
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (panel === "linePicker") {
+      setIsLinePickerDragging(true);
+    } else if (panel === "liveTrackingPill") {
+      setIsLiveTrackingPillDragging(true);
+    } else {
+      setIsStopCardDragging(true);
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleLinePickerDragStart(event: ReactPointerEvent<HTMLDivElement>) {
+    startDragForPanel(event, "linePicker", linePickerRef.current, linePickerOffset);
+  }
+
+  function handleLiveTrackingPillDragStart(event: ReactPointerEvent<HTMLDivElement>) {
+    startDragForPanel(
+      event,
+      "liveTrackingPill",
+      liveTrackingPillRef.current,
+      liveTrackingPillOffset,
+    );
+  }
+
+  function handleStopCardDragStart(event: ReactPointerEvent<HTMLDivElement>) {
+    startDragForPanel(event, "stopCard", stopCardRef.current, stopCardOffset);
+  }
+
+  function handleDraggablePanelClickCapture(event: React.MouseEvent<HTMLElement>) {
+    if (Date.now() <= suppressClickUntilRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  const stopCardDraggableClass = `stop-card--draggable${
+    isStopCardDragging ? " is-dragging" : ""
+  }`;
+  const stopCardDraggableStyle = {
+    transform: `translate3d(${stopCardOffset.x}px, ${stopCardOffset.y}px, 0)`,
+  } satisfies CSSProperties;
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -1704,14 +2015,25 @@ export function TransitDashboard() {
 
       {lineError ? <p className="error-banner">{lineError}</p> : null}
 
-      <section className="map-stage">
+      <section className="map-stage" ref={mapStageRef}>
         <div className="map-overlay map-overlay--top">
           <div className="map-toolbar">
-            <div className="line-picker line-picker--floating">
+            <div
+              ref={linePickerRef}
+              className={`line-picker line-picker--floating line-picker--draggable${
+                isLinePickerDragging ? " is-dragging" : ""
+              }`}
+              onPointerDown={handleLinePickerDragStart}
+              onClickCapture={handleDraggablePanelClickCapture}
+              style={{
+                transform: `translate3d(${linePickerOffset.x}px, ${linePickerOffset.y}px, 0)`,
+              }}
+            >
               <div className="line-picker__row">
-                <label className="field field--compact">
-                  <span>Línea</span>
+                <div className="field field--compact">
+                  <label htmlFor="line-picker-select">Línea</label>
                   <select
+                    id="line-picker-select"
                     value={selectedLineId}
                     onChange={(event) => setSelectedLineId(event.target.value)}
                     disabled={loading || visibleLines.length === 0}
@@ -1735,7 +2057,7 @@ export function TransitDashboard() {
                       </option>
                     )}
                   </select>
-                </label>
+                </div>
                 <div className="line-picker__row-actions">
                   <button
                     type="button"
@@ -1862,7 +2184,15 @@ export function TransitDashboard() {
             ) : null}
             {followedVehicle ? (
               <div
-                className="live-tracking-pill live-tracking-pill--follow"
+                ref={liveTrackingPillRef}
+                className={`live-tracking-pill live-tracking-pill--follow live-tracking-pill--draggable${
+                  isLiveTrackingPillDragging ? " is-dragging" : ""
+                }`}
+                onPointerDown={handleLiveTrackingPillDragStart}
+                onClickCapture={handleDraggablePanelClickCapture}
+                style={{
+                  transform: `translate3d(${liveTrackingPillOffset.x}px, ${liveTrackingPillOffset.y}px, 0)`,
+                }}
                 aria-live="polite"
               >
                 <span className="live-tracking-pill__eyebrow">Siguiendo bus</span>
@@ -1908,7 +2238,15 @@ export function TransitDashboard() {
               </div>
             ) : vehicleTrackingNotice ? (
               <div
-                className="live-tracking-pill live-tracking-pill--notice"
+                ref={liveTrackingPillRef}
+                className={`live-tracking-pill live-tracking-pill--notice live-tracking-pill--draggable${
+                  isLiveTrackingPillDragging ? " is-dragging" : ""
+                }`}
+                onPointerDown={handleLiveTrackingPillDragStart}
+                onClickCapture={handleDraggablePanelClickCapture}
+                style={{
+                  transform: `translate3d(${liveTrackingPillOffset.x}px, ${liveTrackingPillOffset.y}px, 0)`,
+                }}
                 aria-live="polite"
               >
                 <span className="live-tracking-pill__eyebrow">
@@ -2027,18 +2365,39 @@ export function TransitDashboard() {
               eyebrow="Ubicacion"
               title="Activa HTTPS para usar tu posicion"
               description="La ubicacion del navegador solo funciona en un contexto seguro y con permisos del sitio."
+              draggableProps={{
+                ref: stopCardRef,
+                className: stopCardDraggableClass,
+                style: stopCardDraggableStyle,
+                onPointerDown: handleStopCardDragStart,
+                onClickCapture: handleDraggablePanelClickCapture,
+              }}
             />
           ) : geolocationStatus === "denied" ? (
             <StatusCard
               eyebrow="Ubicacion"
               title="No hay acceso a tu ubicacion"
               description="Puedes volver a activarla con el boton GPS o revisar los permisos del navegador para este sitio."
+              draggableProps={{
+                ref: stopCardRef,
+                className: stopCardDraggableClass,
+                style: stopCardDraggableStyle,
+                onPointerDown: handleStopCardDragStart,
+                onClickCapture: handleDraggablePanelClickCapture,
+              }}
             />
           ) : geolocationStatus === "unsupported" ? (
             <StatusCard
               eyebrow="Ubicacion"
               title="Este navegador no ofrece geolocalizacion"
               description="La app seguira funcionando con el mapa y las lineas, pero sin funciones basadas en tu posicion."
+              draggableProps={{
+                ref: stopCardRef,
+                className: stopCardDraggableClass,
+                style: stopCardDraggableStyle,
+                onPointerDown: handleStopCardDragStart,
+                onClickCapture: handleDraggablePanelClickCapture,
+              }}
             />
           ) : nearbyModeEnabled && nearbyStops.length > 0 && !selectedStop ? (
             isNearbyPanelMinimized ? (
@@ -2059,7 +2418,13 @@ export function TransitDashboard() {
                 </span>
               </button>
             ) : (
-              <div className="stop-card stop-card--hint stop-card--state">
+              <div
+                ref={stopCardRef}
+                className={`stop-card stop-card--hint stop-card--state ${stopCardDraggableClass}`}
+                onPointerDown={handleStopCardDragStart}
+                onClickCapture={handleDraggablePanelClickCapture}
+                style={stopCardDraggableStyle}
+              >
                 <div className="stop-card__header stop-card__header--compact">
                   <div className="stop-card__title-block">
                     <span className="stop-card__eyebrow">Paradas cercanas</span>
@@ -2144,6 +2509,13 @@ export function TransitDashboard() {
               title="Buscando paradas cerca de ti"
               description="Estamos consultando las paradas disponibles alrededor de tu ubicacion."
               tone="loading"
+              draggableProps={{
+                ref: stopCardRef,
+                className: stopCardDraggableClass,
+                style: stopCardDraggableStyle,
+                onPointerDown: handleStopCardDragStart,
+                onClickCapture: handleDraggablePanelClickCapture,
+              }}
             >
               <div className="stop-card__skeleton" aria-hidden="true">
                 <span />
@@ -2156,9 +2528,22 @@ export function TransitDashboard() {
               eyebrow="Paradas cercanas"
               title="No hay paradas en este radio"
               description="No hemos encontrado paradas urbanas en 1 km alrededor de tu ubicacion actual."
+              draggableProps={{
+                ref: stopCardRef,
+                className: stopCardDraggableClass,
+                style: stopCardDraggableStyle,
+                onPointerDown: handleStopCardDragStart,
+                onClickCapture: handleDraggablePanelClickCapture,
+              }}
             />
           ) : selectedStop ? (
-            <div className="stop-card stop-card--detail">
+            <div
+              ref={stopCardRef}
+              className={`stop-card stop-card--detail ${stopCardDraggableClass}`}
+              onPointerDown={handleStopCardDragStart}
+              onClickCapture={handleDraggablePanelClickCapture}
+              style={stopCardDraggableStyle}
+            >
               <div className="stop-card__header">
                 <div className="stop-card__title-block">
                   <span className="stop-card__eyebrow">Parada seleccionada</span>
@@ -2289,6 +2674,13 @@ export function TransitDashboard() {
               eyebrow="Detalle de parada"
               title="Selecciona una parada"
               description="Pulsa una parada del mapa para ver sus lineas activas y los proximos tiempos de paso."
+              draggableProps={{
+                ref: stopCardRef,
+                className: stopCardDraggableClass,
+                style: stopCardDraggableStyle,
+                onPointerDown: handleStopCardDragStart,
+                onClickCapture: handleDraggablePanelClickCapture,
+              }}
               action={
                 <button
                   type="button"
@@ -2349,6 +2741,13 @@ type StatusCardProps = {
   tone?: "neutral" | "loading";
   children?: ReactNode;
   action?: ReactNode;
+  draggableProps?: {
+    ref: RefObject<HTMLDivElement | null>;
+    className: string;
+    style: CSSProperties;
+    onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+    onClickCapture: (event: React.MouseEvent<HTMLElement>) => void;
+  };
 };
 
 function StatusCard({
@@ -2358,9 +2757,18 @@ function StatusCard({
   tone = "neutral",
   children,
   action,
+  draggableProps,
 }: StatusCardProps) {
   return (
-    <div className={`stop-card stop-card--hint stop-card--state stop-card--${tone}`}>
+    <div
+      ref={draggableProps?.ref}
+      className={`stop-card stop-card--hint stop-card--state stop-card--${tone}${
+        draggableProps ? ` ${draggableProps.className}` : ""
+      }`}
+      onPointerDown={draggableProps?.onPointerDown}
+      onClickCapture={draggableProps?.onClickCapture}
+      style={draggableProps?.style}
+    >
       {action ? (
         <div className="stop-card__header stop-card__header--compact">
           <div className="stop-card__title-block">
