@@ -2259,10 +2259,12 @@ export function TransitDashboard() {
                     {isFollowingBus ? (
                       <button
                         type="button"
-                        className="favorite-toggle map-live-controls__compact-action"
+                        className="favorite-toggle map-live-controls__compact-action map-live-controls__compact-action--icon"
                         onClick={() => setIsLiveTrackingClusterExpandedDuringFollow(false)}
+                        aria-label="Compactar seguimiento en vivo"
+                        title="Compactar seguimiento en vivo"
                       >
-                        Compactar
+                        <span aria-hidden="true">−</span>
                       </button>
                     ) : null}
                   </div>

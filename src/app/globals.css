@@ -1067,6 +1067,14 @@ a {
   border-radius: 999px;
 }
 
+.map-live-controls__compact-action--icon {
+  min-width: 30px;
+  width: 30px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .map-live-controls__collapsed-trigger {
   min-width: 0;
   height: 28px;
@@ -2829,6 +2837,12 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
     min-width: 72px;
     height: 30px;
     padding: 0 8px;
+  }
+
+  .map-live-controls__compact-action--icon {
+    min-width: 30px;
+    width: 30px;
+    padding: 0;
   }
 
   .map-live-controls__collapsed-trigger {
