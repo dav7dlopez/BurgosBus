@@ -11,7 +11,14 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { IconBusStop, IconCreditCard, IconMoon, IconSun } from "@tabler/icons-react";
+import {
+  IconBusStop,
+  IconCreditCard,
+  IconMoon,
+  IconStar,
+  IconSun,
+  IconTrash,
+} from "@tabler/icons-react";
 
 import { mapProviders } from "@/lib/map-config";
 import type {
@@ -37,9 +44,6 @@ const NEARBY_STOP_RADIUS_METERS = 1000;
 const INITIAL_LINES_RETRY_ATTEMPTS = 3;
 const INITIAL_LINES_RETRY_DELAY_MS = 1400;
 const BONOBUR_CARD_STORAGE_KEY = "bus-burgos-bonobur-card";
-const BONOBUR_UPSTREAM_BALANCE_URL =
-  "https://bonobur.aytoburgos.es:8443/api/cargasaldo/comprobar";
-const BONOBUR_UPSTREAM_TIMEOUT_MS = 15000;
 
 type BonoburBalanceSuccess = {
   ok: true;
@@ -51,15 +55,13 @@ type BonoburBalanceSuccess = {
   pendingTopUpDate: string | null;
 };
 
-type BonoburUpstreamPayload = {
-  respuesta?: unknown;
-  error?: unknown;
-  Message?: unknown;
-  saldo?: unknown;
-  vigencia?: unknown;
-  recargaPendiente?: unknown;
-  fechaRecargaPendiente?: unknown;
+type BonoburBalanceFailure = {
+  ok: false;
+  status: "functional_error" | "technical_error";
+  message: string;
 };
+
+type BonoburBalanceResponse = BonoburBalanceSuccess | BonoburBalanceFailure;
 
 type FavoriteStop = {
   id: string;
@@ -223,14 +225,6 @@ function formatBonoburEuros(value: number) {
   });
 }
 
-function toNullableNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function toNullableString(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0 ? value : null;
-}
-
 type FollowedVehicleStopState =
   | {
       mode: "real";
@@ -247,12 +241,7 @@ type FollowedVehicleStopState =
   | null;
 
 type LinePickerDragState = {
-  panel:
-    | "linePicker"
-    | "liveTrackingPill"
-    | "stopCard"
-    | "favoriteLineStrip"
-    | "favoriteStopStrip";
+  panel: "linePicker" | "liveTrackingPill" | "stopCard" | "favoritesPanel";
   pointerId: number;
   startClientX: number;
   startClientY: number;
@@ -273,6 +262,9 @@ export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [favoriteStopsPanelOpen, setFavoriteStopsPanelOpen] = useState(false);
+  const [favoritesPanelTab, setFavoritesPanelTab] = useState<"lines" | "stops">(
+    "lines",
+  );
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [isNearbyPanelMinimized, setIsNearbyPanelMinimized] = useState(false);
@@ -338,8 +330,7 @@ export function TransitDashboard() {
   const linePickerRef = useRef<HTMLDivElement | null>(null);
   const liveTrackingPillRef = useRef<HTMLDivElement | null>(null);
   const stopCardRef = useRef<HTMLDivElement | null>(null);
-  const favoriteLineStripRef = useRef<HTMLDivElement | null>(null);
-  const favoriteStopStripRef = useRef<HTMLDivElement | null>(null);
+  const favoritesPanelRef = useRef<HTMLDivElement | null>(null);
   const linePickerDragStateRef = useRef<LinePickerDragState | null>(null);
   const [linePickerOffset, setLinePickerOffset] = useState({ x: 0, y: 0 });
   const [isLinePickerDragging, setIsLinePickerDragging] = useState(false);
@@ -351,18 +342,8 @@ export function TransitDashboard() {
     useState(false);
   const [stopCardOffset, setStopCardOffset] = useState({ x: 0, y: 0 });
   const [isStopCardDragging, setIsStopCardDragging] = useState(false);
-  const [favoriteLineStripOffset, setFavoriteLineStripOffset] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [isFavoriteLineStripDragging, setIsFavoriteLineStripDragging] =
-    useState(false);
-  const [favoriteStopStripOffset, setFavoriteStopStripOffset] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [isFavoriteStopStripDragging, setIsFavoriteStopStripDragging] =
-    useState(false);
+  const [favoritesPanelOffset, setFavoritesPanelOffset] = useState({ x: 0, y: 0 });
+  const [isFavoritesPanelDragging, setIsFavoritesPanelDragging] = useState(false);
   const suppressClickUntilRef = useRef<number>(0);
 
   useEffect(() => {
@@ -559,8 +540,7 @@ export function TransitDashboard() {
       !isLinePickerDragging &&
       !isLiveTrackingPillDragging &&
       !isStopCardDragging &&
-      !isFavoriteLineStripDragging &&
-      !isFavoriteStopStripDragging
+      !isFavoritesPanelDragging
     ) {
       return;
     }
@@ -601,10 +581,8 @@ export function TransitDashboard() {
         setLiveTrackingPillOffset(nextOffset);
       } else if (dragState.panel === "stopCard") {
         setStopCardOffset(nextOffset);
-      } else if (dragState.panel === "favoriteLineStrip") {
-        setFavoriteLineStripOffset(nextOffset);
       } else {
-        setFavoriteStopStripOffset(nextOffset);
+        setFavoritesPanelOffset(nextOffset);
       }
     }
 
@@ -621,10 +599,8 @@ export function TransitDashboard() {
         setIsLiveTrackingPillDragging(false);
       } else if (dragState.panel === "stopCard") {
         setIsStopCardDragging(false);
-      } else if (dragState.panel === "favoriteLineStrip") {
-        setIsFavoriteLineStripDragging(false);
       } else {
-        setIsFavoriteStopStripDragging(false);
+        setIsFavoritesPanelDragging(false);
       }
       if (dragState.hasMoved) {
         suppressClickUntilRef.current = Date.now() + 220;
@@ -641,11 +617,10 @@ export function TransitDashboard() {
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
   }, [
+    isFavoritesPanelDragging,
     isLinePickerDragging,
     isLiveTrackingPillDragging,
     isStopCardDragging,
-    isFavoriteLineStripDragging,
-    isFavoriteStopStripDragging,
   ]);
 
   useEffect(() => {
@@ -664,29 +639,17 @@ export function TransitDashboard() {
       setIsStopCardDragging(false);
     }
 
-    if (
-      activeDrag.panel === "favoriteLineStrip" &&
-      !favoriteLineStripRef.current
-    ) {
+    if (activeDrag.panel === "favoritesPanel" && !favoritesPanelRef.current) {
       linePickerDragStateRef.current = null;
-      setIsFavoriteLineStripDragging(false);
-    }
-
-    if (
-      activeDrag.panel === "favoriteStopStrip" &&
-      !favoriteStopStripRef.current
-    ) {
-      linePickerDragStateRef.current = null;
-      setIsFavoriteStopStripDragging(false);
+      setIsFavoritesPanelDragging(false);
     }
   }, [
+    favoriteLineIds.length,
+    favoriteStops.length,
+    favoriteStopsPanelOpen,
     followedVehicleId,
     vehicleTrackingNotice,
     selectedStop,
-    favoriteLineIds.length,
-    lines.length,
-    favoriteStopsPanelOpen,
-    favoriteStops.length,
     nearbyModeEnabled,
     nearbyStopsLoading,
     nearbyStopsResolved,
@@ -734,8 +697,7 @@ export function TransitDashboard() {
     clampPanelToViewport(linePickerRef.current, setLinePickerOffset);
     clampPanelToViewport(liveTrackingPillRef.current, setLiveTrackingPillOffset);
     clampPanelToViewport(stopCardRef.current, setStopCardOffset);
-    clampPanelToViewport(favoriteLineStripRef.current, setFavoriteLineStripOffset);
-    clampPanelToViewport(favoriteStopStripRef.current, setFavoriteStopStripOffset);
+    clampPanelToViewport(favoritesPanelRef.current, setFavoritesPanelOffset);
   }
 
   useEffect(() => {
@@ -773,9 +735,9 @@ export function TransitDashboard() {
     isLiveTrackingEnabled,
     liveTrackingRouteId,
     favoriteLineIds.length,
-    favoriteStopsPanelOpen,
     favoriteStops.length,
-    lines.length,
+    favoriteStopsPanelOpen,
+    favoritesPanelTab,
   ]);
 
   useEffect(() => {
@@ -1272,6 +1234,26 @@ export function TransitDashboard() {
   );
 
   useEffect(() => {
+    if (!favoriteStopsPanelOpen) {
+      return;
+    }
+
+    if (favoritesPanelTab === "lines" && favoriteLines.length === 0 && favoriteStops.length > 0) {
+      setFavoritesPanelTab("stops");
+      return;
+    }
+
+    if (favoritesPanelTab === "stops" && favoriteStops.length === 0 && favoriteLines.length > 0) {
+      setFavoritesPanelTab("lines");
+    }
+  }, [
+    favoriteLines.length,
+    favoriteStops.length,
+    favoriteStopsPanelOpen,
+    favoritesPanelTab,
+  ]);
+
+  useEffect(() => {
     if (lines.length === 0) {
       return;
     }
@@ -1514,6 +1496,12 @@ export function TransitDashboard() {
     );
   }
 
+  function removeFavoriteLine(lineId: string) {
+    setFavoriteLineIds((current) =>
+      current.filter((favoriteId) => favoriteId !== lineId),
+    );
+  }
+
   function startFollowingVehicle(vehicle: VehiclePosition) {
     setVehicleTrackingNotice(null);
     if (previousLiveTrackingRouteIdBeforeFollowRef.current === undefined) {
@@ -1542,6 +1530,12 @@ export function TransitDashboard() {
       current.some((favoriteStop) => favoriteStop.id === stop.id)
         ? current.filter((favoriteStop) => favoriteStop.id !== stop.id)
         : [...current, { id: stop.id, name: stop.name, lineId: selectedLineId || null }],
+    );
+  }
+
+  function removeFavoriteStop(stopId: string) {
+    setFavoriteStops((current) =>
+      current.filter((favoriteStop) => favoriteStop.id !== stopId),
     );
   }
 
@@ -1601,69 +1595,33 @@ export function TransitDashboard() {
     setBonoburError(null);
     setBonoburFunctionalError(null);
 
-    if (!/^\d{10,13}$/.test(normalizedCard)) {
-      setBonoburBalance(null);
-      setBonoburFunctionalError(
-        "Introduce un número de tarjeta válido (solo dígitos).",
-      );
-      setBonoburLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(
-      () => controller.abort(),
-      BONOBUR_UPSTREAM_TIMEOUT_MS,
-    );
-
     try {
-      const response = await fetch(BONOBUR_UPSTREAM_BALANCE_URL, {
+      const response = await fetch("/api/bonobur/balance", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json, text/plain, */*",
         },
         body: JSON.stringify({ numeroTarjeta: normalizedCard }),
-        signal: controller.signal,
       });
 
+      const data = (await response.json()) as BonoburBalanceResponse;
       if (!response.ok) {
-        throw new Error("Servicio BONOBUR temporalmente no disponible.");
-      }
-
-      let upstreamData: BonoburUpstreamPayload;
-      try {
-        upstreamData = (await response.json()) as BonoburUpstreamPayload;
-      } catch {
-        throw new Error("Servicio BONOBUR temporalmente no disponible.");
-      }
-
-      const functionalError =
-        toNullableString(upstreamData.error) ?? toNullableString(upstreamData.Message);
-      if (upstreamData.respuesta === -1 || functionalError) {
-        setBonoburFunctionalError(
-          functionalError ??
-            "No se ha podido validar la tarjeta BONOBUR en este momento.",
+        throw new Error(
+          data.ok ? "No se pudo consultar el saldo BONOBUR." : data.message,
         );
-        setBonoburBalance(null);
-        return;
       }
 
-      const saldoCents = toNullableNumber(upstreamData.saldo);
-      const recargaPendienteCents = toNullableNumber(upstreamData.recargaPendiente);
+      if (!data.ok) {
+        if (data.status === "functional_error") {
+          setBonoburFunctionalError(data.message);
+          setBonoburBalance(null);
+          return;
+        }
 
-      const normalizedResponse: BonoburBalanceSuccess = {
-        ok: true,
-        status: "success",
-        observedAt: new Date().toISOString(),
-        balanceEuros: saldoCents !== null ? saldoCents / 100 : null,
-        validity: toNullableString(upstreamData.vigencia),
-        pendingTopUpEuros:
-          recargaPendienteCents !== null ? recargaPendienteCents / 100 : null,
-        pendingTopUpDate: toNullableString(upstreamData.fechaRecargaPendiente),
-      };
+        throw new Error(data.message);
+      }
 
-      setBonoburBalance(normalizedResponse);
+      setBonoburBalance(data);
       if (shouldRemember) {
         setSavedBonoburCard(normalizedCard);
         setBonoburRememberCard(true);
@@ -1685,7 +1643,6 @@ export function TransitDashboard() {
           : "Servicio BONOBUR temporalmente no disponible.",
       );
     } finally {
-      window.clearTimeout(timeoutId);
       setBonoburLoading(false);
     }
   }
@@ -1729,12 +1686,7 @@ export function TransitDashboard() {
 
   function startDragForPanel(
     event: ReactPointerEvent<HTMLDivElement>,
-    panel:
-      | "linePicker"
-      | "liveTrackingPill"
-      | "stopCard"
-      | "favoriteLineStrip"
-      | "favoriteStopStrip",
+    panel: "linePicker" | "liveTrackingPill" | "stopCard" | "favoritesPanel",
     panelRef: HTMLDivElement | null,
     startOffset: { x: number; y: number },
   ) {
@@ -1787,10 +1739,8 @@ export function TransitDashboard() {
       setIsLiveTrackingPillDragging(true);
     } else if (panel === "stopCard") {
       setIsStopCardDragging(true);
-    } else if (panel === "favoriteLineStrip") {
-      setIsFavoriteLineStripDragging(true);
     } else {
-      setIsFavoriteStopStripDragging(true);
+      setIsFavoritesPanelDragging(true);
     }
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -1812,25 +1762,12 @@ export function TransitDashboard() {
     startDragForPanel(event, "stopCard", stopCardRef.current, stopCardOffset);
   }
 
-  function handleFavoriteLineStripDragStart(
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) {
+  function handleFavoritesPanelDragStart(event: ReactPointerEvent<HTMLDivElement>) {
     startDragForPanel(
       event,
-      "favoriteLineStrip",
-      favoriteLineStripRef.current,
-      favoriteLineStripOffset,
-    );
-  }
-
-  function handleFavoriteStopStripDragStart(
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) {
-    startDragForPanel(
-      event,
-      "favoriteStopStrip",
-      favoriteStopStripRef.current,
-      favoriteStopStripOffset,
+      "favoritesPanel",
+      favoritesPanelRef.current,
+      favoritesPanelOffset,
     );
   }
 
@@ -1847,17 +1784,11 @@ export function TransitDashboard() {
   const stopCardDraggableStyle = {
     transform: `translate3d(${stopCardOffset.x}px, ${stopCardOffset.y}px, 0)`,
   } satisfies CSSProperties;
-  const favoriteLineStripDraggableClass = `favorite-strip--draggable${
-    isFavoriteLineStripDragging ? " is-dragging" : ""
+  const favoritesPanelDraggableClass = `favorites-panel--draggable${
+    isFavoritesPanelDragging ? " is-dragging" : ""
   }`;
-  const favoriteLineStripDraggableStyle = {
-    transform: `translate3d(${favoriteLineStripOffset.x}px, ${favoriteLineStripOffset.y}px, 0)`,
-  } satisfies CSSProperties;
-  const favoriteStopStripDraggableClass = `favorite-stop-strip--draggable${
-    isFavoriteStopStripDragging ? " is-dragging" : ""
-  }`;
-  const favoriteStopStripDraggableStyle = {
-    transform: `translate3d(${favoriteStopStripOffset.x}px, ${favoriteStopStripOffset.y}px, 0)`,
+  const favoritesPanelDraggableStyle = {
+    transform: `translate3d(${favoritesPanelOffset.x}px, ${favoritesPanelOffset.y}px, 0)`,
   } satisfies CSSProperties;
 
   return (
@@ -2122,26 +2053,26 @@ export function TransitDashboard() {
                 }`}
                 aria-label={
                   favoriteStopsPanelOpen
-                    ? "Ocultar paradas favoritas"
-                    : "Mostrar paradas favoritas"
+                    ? "Ocultar panel de favoritos"
+                    : "Mostrar panel de favoritos"
                 }
                 aria-expanded={favoriteStopsPanelOpen}
-                aria-controls="favorite-stops-panel"
+                aria-controls="favorites-panel"
                 title={
                   favoriteStopsPanelOpen
-                    ? "Ocultar paradas favoritas"
-                    : "Mostrar paradas favoritas"
+                    ? "Ocultar favoritos"
+                    : "Mostrar favoritos"
                 }
                 onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
               >
-                <IconBusStop
+                <IconStar
                   size={14}
                   strokeWidth={2}
                   aria-hidden="true"
                   focusable="false"
                   className="theme-toggle__icon"
                 />
-                <span className="theme-toggle__utility-label">Fav.</span>
+                <span className="theme-toggle__utility-label">Favs</span>
               </button>
             </div>
           </div>
@@ -2367,12 +2298,10 @@ export function TransitDashboard() {
                     {isFollowingBus ? (
                       <button
                         type="button"
-                        className="favorite-toggle map-live-controls__compact-action map-live-controls__compact-action--icon"
+                        className="favorite-toggle map-live-controls__compact-action"
                         onClick={() => setIsLiveTrackingClusterExpandedDuringFollow(false)}
-                        aria-label="Compactar seguimiento en vivo"
-                        title="Compactar seguimiento en vivo"
                       >
-                        <span aria-hidden="true">−</span>
+                        Compactar
                       </button>
                     ) : null}
                   </div>
@@ -2467,79 +2396,163 @@ export function TransitDashboard() {
         </div>
 
         <div className="map-overlay map-overlay--bottom">
-          {favoriteLines.length > 0 ? (
-            <div
-              ref={favoriteLineStripRef}
-              className={`favorite-strip favorite-strip--floating ${favoriteLineStripDraggableClass}`}
-              aria-label="Lineas favoritas"
-              onPointerDown={handleFavoriteLineStripDragStart}
-              onClickCapture={handleDraggablePanelClickCapture}
-              style={favoriteLineStripDraggableStyle}
-            >
-              <span className="favorite-strip__label">Favoritas</span>
-              <div className="favorite-strip__scroller">
-                {favoriteLines.map((line) => (
-                  <button
-                    key={line.id}
-                    type="button"
-                    className={`favorite-line-chip${
-                      line.id === selectedLineId ? " is-active" : ""
-                    }`}
-                    onClick={() => setSelectedLineId(line.id)}
-                  >
-                    <span className="favorite-line-chip__icon" aria-hidden="true">
-                      ★
-                    </span>
-                    {line.publicCode}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
           {favoriteStopsPanelOpen ? (
             <div
-              ref={favoriteStopStripRef}
-              id="favorite-stops-panel"
-              className={`favorite-stop-strip favorite-stop-strip--panel ${favoriteStopStripDraggableClass}`}
-              aria-label="Paradas favoritas"
-              onPointerDown={handleFavoriteStopStripDragStart}
+              ref={favoritesPanelRef}
+              id="favorites-panel"
+              className={`favorites-panel ${favoritesPanelDraggableClass}`}
+              aria-label="Panel de favoritos"
+              onPointerDown={handleFavoritesPanelDragStart}
               onClickCapture={handleDraggablePanelClickCapture}
-              style={favoriteStopStripDraggableStyle}
+              style={favoritesPanelDraggableStyle}
             >
-              {favoriteStops.length > 0 ? (
-                <>
-                  <span className="favorite-stop-strip__label">
-                    Paradas favoritas
-                  </span>
-                  <div className="favorite-stop-strip__scroller">
+              <div className="favorites-panel__header">
+                <div className="favorites-panel__header-row">
+                  <span className="favorites-panel__eyebrow">Favoritos</span>
+                  <button
+                    type="button"
+                    className="favorites-panel__close"
+                    onClick={() => setFavoriteStopsPanelOpen(false)}
+                    aria-label="Cerrar panel de favoritos"
+                    title="Cerrar favoritos"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div
+                  className="favorites-panel__tabs"
+                  role="tablist"
+                  aria-label="Tipos de favoritos"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={favoritesPanelTab === "lines"}
+                    className={`favorites-panel__tab${
+                      favoritesPanelTab === "lines" ? " is-active" : ""
+                    }`}
+                    onClick={() => setFavoritesPanelTab("lines")}
+                  >
+                    Líneas
+                    <span className="favorites-panel__tab-count">
+                      {favoriteLines.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={favoritesPanelTab === "stops"}
+                    className={`favorites-panel__tab${
+                      favoritesPanelTab === "stops" ? " is-active" : ""
+                    }`}
+                    onClick={() => setFavoritesPanelTab("stops")}
+                  >
+                    Paradas
+                    <span className="favorites-panel__tab-count">
+                      {favoriteStops.length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="favorites-panel__body">
+                {favoritesPanelTab === "lines" ? (
+                  favoriteLines.length > 0 ? (
+                    <div className="favorites-panel__list" role="list">
+                      {favoriteLines.map((line) => (
+                        <div
+                          key={line.id}
+                          role="listitem"
+                          className={`favorites-panel__item${
+                            line.id === selectedLineId ? " is-active" : ""
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="favorites-panel__item-main-button"
+                            onClick={() => setSelectedLineId(line.id)}
+                            title={`${line.publicCode} ${line.displayName}`}
+                          >
+                            <span className="favorites-panel__item-main">
+                              {line.publicCode} {line.displayName}
+                            </span>
+                            <span className="favorites-panel__item-meta">
+                              {line.isActiveNow === false
+                                ? "Sin servicio"
+                                : "En servicio"}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="favorites-panel__item-remove"
+                            onClick={() => removeFavoriteLine(line.id)}
+                            aria-label={`Eliminar línea ${line.publicCode} de favoritas`}
+                            title="Eliminar de favoritas"
+                            data-no-drag
+                          >
+                            <IconTrash
+                              size={14}
+                              strokeWidth={2}
+                              aria-hidden="true"
+                              focusable="false"
+                            />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="favorites-panel__empty">
+                      <strong>No hay líneas favoritas aún</strong>
+                      <p>Marca una línea con la estrella para verla aquí.</p>
+                    </div>
+                  )
+                ) : favoriteStops.length > 0 ? (
+                  <div className="favorites-panel__list" role="list">
                     {favoriteStops.map((favoriteStop) => (
-                      <button
+                      <div
                         key={favoriteStop.id}
-                        type="button"
-                        className={`favorite-stop-chip${
+                        role="listitem"
+                        className={`favorites-panel__item${
                           favoriteStop.id === selectedStop?.id ? " is-active" : ""
                         }`}
-                        onClick={() => reopenFavoriteStop(favoriteStop)}
-                        title={favoriteStop.name}
                       >
-                        <span className="favorite-stop-chip__name">
-                          {favoriteStop.name}
-                        </span>
-                        <span className="favorite-stop-chip__meta">
-                          #{favoriteStop.id}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          className="favorites-panel__item-main-button"
+                          onClick={() => reopenFavoriteStop(favoriteStop)}
+                          title={favoriteStop.name}
+                        >
+                          <span className="favorites-panel__item-main">
+                            {favoriteStop.name}
+                          </span>
+                          <span className="favorites-panel__item-meta">
+                            #{favoriteStop.id}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="favorites-panel__item-remove"
+                          onClick={() => removeFavoriteStop(favoriteStop.id)}
+                          aria-label={`Eliminar parada ${favoriteStop.name} de favoritas`}
+                          title="Eliminar de favoritas"
+                          data-no-drag
+                        >
+                          <IconTrash
+                            size={14}
+                            strokeWidth={2}
+                            aria-hidden="true"
+                            focusable="false"
+                          />
+                        </button>
+                      </div>
                     ))}
                   </div>
-                </>
-              ) : (
-                <div className="favorite-stop-empty">
-                  <strong>No hay paradas favoritas aún</strong>
-                  <p>
-                    Guarda una parada desde su panel para tenerla aquí a mano.
-                  </p>
-                </div>
-              )}
+                ) : (
+                  <div className="favorites-panel__empty">
+                    <strong>No hay paradas favoritas aún</strong>
+                    <p>Guarda una parada desde su panel para tenerla aquí a mano.</p>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
           {geolocationStatus === "insecure" ? (
