@@ -277,6 +277,8 @@ export function TransitDashboard() {
   const [showActiveLinesOnly, setShowActiveLinesOnly] = useState(false);
   const [isLiveTrackingEnabled, setIsLiveTrackingEnabled] = useState(false);
   const [liveTrackingRouteId, setLiveTrackingRouteId] = useState<string | null>(null);
+  const [isLiveTrackingClusterExpandedDuringFollow, setIsLiveTrackingClusterExpandedDuringFollow] =
+    useState(false);
   const [followedVehicleId, setFollowedVehicleId] = useState<string | null>(null);
   const [vehicleTrackingNotice, setVehicleTrackingNotice] = useState<string | null>(
     null,
@@ -318,6 +320,7 @@ export function TransitDashboard() {
   const geolocationWatchId = useRef<number | null>(null);
   const lastSelectedLineIdRef = useRef<string | null>(null);
   const lastVehicleTrackingLineIdRef = useRef<string | null>(null);
+  const lastFollowedVehicleIdRef = useRef<string | null>(null);
   const previousLiveTrackingRouteIdBeforeFollowRef = useRef<
     string | null | undefined
   >(undefined);
@@ -1137,6 +1140,9 @@ export function TransitDashboard() {
         : null,
     [followedVehicleId, visibleLiveTrackingVehicles],
   );
+  const isFollowingBus = followedVehicleId !== null;
+  const isLiveTrackingClusterCollapsed =
+    isFollowingBus && !isLiveTrackingClusterExpandedDuringFollow;
   const followedVehicleRoute = useMemo(
     () =>
       followedVehicle?.routeId
@@ -1211,6 +1217,14 @@ export function TransitDashboard() {
   }, [lines]);
 
   useEffect(() => {
+    if (!isLiveTrackingClusterCollapsed || !isMobileLegendOpen) {
+      return;
+    }
+
+    setIsMobileLegendOpen(false);
+  }, [isLiveTrackingClusterCollapsed, isMobileLegendOpen]);
+
+  useEffect(() => {
     if (!selectedLineId) {
       setIsLiveTrackingEnabled(false);
       setLiveTrackingRouteId(null);
@@ -1236,6 +1250,20 @@ export function TransitDashboard() {
 
     lastVehicleTrackingLineIdRef.current = selectedLineId;
   }, [selectedLineId]);
+
+  useEffect(() => {
+    if (!followedVehicleId) {
+      setIsLiveTrackingClusterExpandedDuringFollow(false);
+      lastFollowedVehicleIdRef.current = null;
+      return;
+    }
+
+    if (lastFollowedVehicleIdRef.current !== followedVehicleId) {
+      setIsLiveTrackingClusterExpandedDuringFollow(false);
+    }
+
+    lastFollowedVehicleIdRef.current = followedVehicleId;
+  }, [followedVehicleId]);
 
   useEffect(() => {
     if (isLiveTrackingEnabled) {
@@ -2117,71 +2145,6 @@ export function TransitDashboard() {
         </div>
         <div className="map-overlay map-overlay--context">
           <div className="map-status-cluster">
-            {selectedLine ? (
-              <div className="map-live-controls" aria-label="Controles de seguimiento">
-                <button
-                  type="button"
-                  className={`favorite-toggle live-tracking-toggle${
-                    isLiveTrackingEnabled ? " is-active" : ""
-                  }`}
-                  onClick={() => {
-                    setIsLiveTrackingEnabled((current) => {
-                      const nextValue = !current;
-                      if (!nextValue) {
-                        setLiveTrackingRouteId(null);
-                      }
-                      return nextValue;
-                    });
-                  }}
-                  aria-pressed={isLiveTrackingEnabled}
-                  aria-label={
-                    isLiveTrackingEnabled
-                      ? "Desactivar seguimiento en vivo"
-                      : "Activar seguimiento en vivo"
-                  }
-                  title={
-                    isLiveTrackingEnabled
-                      ? "Desactivar seguimiento en vivo"
-                      : "Activar seguimiento en vivo"
-                  }
-                >
-                  <span className="favorite-toggle__label">Seguimiento en vivo</span>
-                </button>
-                {isLiveTrackingEnabled ? (
-                  <span className="line-picker__live-meta line-picker__live-meta--compact">
-                    {vehicles.length} {vehicles.length === 1 ? "bus" : "buses"}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            {isLiveTrackingEnabled && canFilterLiveTrackingByRoute ? (
-              <div
-                className="live-tracking-route-picker"
-                aria-label="Filtrar seguimiento en vivo por recorrido"
-              >
-                <button
-                  type="button"
-                  className={`favorite-line-chip${
-                    liveTrackingRouteId === null ? " is-active" : ""
-                  }`}
-                  onClick={() => setLiveTrackingRouteId(null)}
-                >
-                  Línea completa
-                </button>
-                {liveTrackingRouteOptions.map((route) => (
-                  <button
-                    key={route.id}
-                    type="button"
-                    className={`favorite-line-chip${
-                      liveTrackingRouteId === route.id ? " is-active" : ""
-                    }`}
-                    onClick={() => setLiveTrackingRouteId(route.id)}
-                  >
-                    {route.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
             {followedVehicle ? (
               <div
                 ref={liveTrackingPillRef}
@@ -2236,7 +2199,131 @@ export function TransitDashboard() {
                   </button>
                 </div>
               </div>
-            ) : vehicleTrackingNotice ? (
+            ) : null}
+            {isLiveTrackingClusterCollapsed ? (
+              <div
+                className="map-live-controls map-live-controls--collapsed"
+                aria-label="Controles de seguimiento colapsados"
+              >
+                <button
+                  type="button"
+                  className="favorite-toggle map-live-controls__collapsed-trigger"
+                  onClick={() => setIsLiveTrackingClusterExpandedDuringFollow(true)}
+                  aria-label="Mostrar controles completos de seguimiento en vivo"
+                >
+                  Mostrar seguimiento
+                  {isLiveTrackingEnabled ? (
+                    <span className="map-live-controls__collapsed-count">
+                      {vehicles.length}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
+            ) : (
+              <>
+                {selectedLine ? (
+                  <div className="map-live-controls" aria-label="Controles de seguimiento">
+                    <button
+                      type="button"
+                      className={`favorite-toggle live-tracking-toggle${
+                        isLiveTrackingEnabled ? " is-active" : ""
+                      }`}
+                      onClick={() => {
+                        setIsLiveTrackingEnabled((current) => {
+                          const nextValue = !current;
+                          if (!nextValue) {
+                            setLiveTrackingRouteId(null);
+                          }
+                          return nextValue;
+                        });
+                      }}
+                      aria-pressed={isLiveTrackingEnabled}
+                      aria-label={
+                        isLiveTrackingEnabled
+                          ? "Desactivar seguimiento en vivo"
+                          : "Activar seguimiento en vivo"
+                      }
+                      title={
+                        isLiveTrackingEnabled
+                          ? "Desactivar seguimiento en vivo"
+                          : "Activar seguimiento en vivo"
+                      }
+                    >
+                      <span className="favorite-toggle__label">Seguimiento en vivo</span>
+                    </button>
+                    {isLiveTrackingEnabled ? (
+                      <span className="line-picker__live-meta line-picker__live-meta--compact">
+                        {vehicles.length} {vehicles.length === 1 ? "bus" : "buses"}
+                      </span>
+                    ) : null}
+                    {isFollowingBus ? (
+                      <button
+                        type="button"
+                        className="favorite-toggle map-live-controls__compact-action"
+                        onClick={() => setIsLiveTrackingClusterExpandedDuringFollow(false)}
+                      >
+                        Compactar
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {isLiveTrackingEnabled && canFilterLiveTrackingByRoute ? (
+                  <div
+                    className="live-tracking-route-picker"
+                    aria-label="Filtrar seguimiento en vivo por recorrido"
+                  >
+                    <button
+                      type="button"
+                      className={`favorite-line-chip${
+                        liveTrackingRouteId === null ? " is-active" : ""
+                      }`}
+                      onClick={() => setLiveTrackingRouteId(null)}
+                    >
+                      Línea completa
+                    </button>
+                    {liveTrackingRouteOptions.map((route) => (
+                      <button
+                        key={route.id}
+                        type="button"
+                        className={`favorite-line-chip${
+                          liveTrackingRouteId === route.id ? " is-active" : ""
+                        }`}
+                        onClick={() => setLiveTrackingRouteId(route.id)}
+                      >
+                        {route.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="map-context-controls">
+                  <button
+                    type="button"
+                    className={`legend-toggle${isMobileLegendOpen ? " is-open" : ""}`}
+                    onClick={() => setIsMobileLegendOpen((current) => !current)}
+                    aria-expanded={isMobileLegendOpen}
+                    aria-controls="route-legend"
+                  >
+                    <span aria-hidden="true">≋</span>
+                    <span className="legend-toggle__label">Recorridos</span>
+                  </button>
+                  <div
+                    id="route-legend"
+                    className={`route-legend${isMobileLegendOpen ? " is-open" : ""}`}
+                  >
+                    {routeSummaries.map((route) => (
+                      <span key={route.renderKey} className="route-pill">
+                        <span
+                          className="route-pill__swatch"
+                          style={{ backgroundColor: route.color }}
+                        />
+                        {route.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            {!followedVehicle && vehicleTrackingNotice ? (
               <div
                 ref={liveTrackingPillRef}
                 className={`live-tracking-pill live-tracking-pill--notice live-tracking-pill--draggable${
@@ -2266,32 +2353,6 @@ export function TransitDashboard() {
                 </div>
               </div>
             ) : null}
-            <div className="map-context-controls">
-              <button
-                type="button"
-                className={`legend-toggle${isMobileLegendOpen ? " is-open" : ""}`}
-                onClick={() => setIsMobileLegendOpen((current) => !current)}
-                aria-expanded={isMobileLegendOpen}
-                aria-controls="route-legend"
-              >
-                <span aria-hidden="true">≋</span>
-                <span className="legend-toggle__label">Recorridos</span>
-              </button>
-              <div
-                id="route-legend"
-                className={`route-legend${isMobileLegendOpen ? " is-open" : ""}`}
-              >
-                {routeSummaries.map((route) => (
-                  <span key={route.renderKey} className="route-pill">
-                    <span
-                      className="route-pill__swatch"
-                      style={{ backgroundColor: route.color }}
-                    />
-                    {route.label}
-                  </span>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
