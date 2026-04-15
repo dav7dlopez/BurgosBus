@@ -247,7 +247,12 @@ type FollowedVehicleStopState =
   | null;
 
 type LinePickerDragState = {
-  panel: "linePicker" | "liveTrackingPill" | "stopCard";
+  panel:
+    | "linePicker"
+    | "liveTrackingPill"
+    | "stopCard"
+    | "favoriteLineStrip"
+    | "favoriteStopStrip";
   pointerId: number;
   startClientX: number;
   startClientY: number;
@@ -333,6 +338,8 @@ export function TransitDashboard() {
   const linePickerRef = useRef<HTMLDivElement | null>(null);
   const liveTrackingPillRef = useRef<HTMLDivElement | null>(null);
   const stopCardRef = useRef<HTMLDivElement | null>(null);
+  const favoriteLineStripRef = useRef<HTMLDivElement | null>(null);
+  const favoriteStopStripRef = useRef<HTMLDivElement | null>(null);
   const linePickerDragStateRef = useRef<LinePickerDragState | null>(null);
   const [linePickerOffset, setLinePickerOffset] = useState({ x: 0, y: 0 });
   const [isLinePickerDragging, setIsLinePickerDragging] = useState(false);
@@ -344,6 +351,18 @@ export function TransitDashboard() {
     useState(false);
   const [stopCardOffset, setStopCardOffset] = useState({ x: 0, y: 0 });
   const [isStopCardDragging, setIsStopCardDragging] = useState(false);
+  const [favoriteLineStripOffset, setFavoriteLineStripOffset] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [isFavoriteLineStripDragging, setIsFavoriteLineStripDragging] =
+    useState(false);
+  const [favoriteStopStripOffset, setFavoriteStopStripOffset] = useState({
+    x: 0,
+    y: 0,
+  });
+  const [isFavoriteStopStripDragging, setIsFavoriteStopStripDragging] =
+    useState(false);
   const suppressClickUntilRef = useRef<number>(0);
 
   useEffect(() => {
@@ -536,7 +555,13 @@ export function TransitDashboard() {
   }, [bonoburPanelOpen]);
 
   useEffect(() => {
-    if (!isLinePickerDragging && !isLiveTrackingPillDragging && !isStopCardDragging) {
+    if (
+      !isLinePickerDragging &&
+      !isLiveTrackingPillDragging &&
+      !isStopCardDragging &&
+      !isFavoriteLineStripDragging &&
+      !isFavoriteStopStripDragging
+    ) {
       return;
     }
 
@@ -574,8 +599,12 @@ export function TransitDashboard() {
         setLinePickerOffset(nextOffset);
       } else if (dragState.panel === "liveTrackingPill") {
         setLiveTrackingPillOffset(nextOffset);
-      } else {
+      } else if (dragState.panel === "stopCard") {
         setStopCardOffset(nextOffset);
+      } else if (dragState.panel === "favoriteLineStrip") {
+        setFavoriteLineStripOffset(nextOffset);
+      } else {
+        setFavoriteStopStripOffset(nextOffset);
       }
     }
 
@@ -590,8 +619,12 @@ export function TransitDashboard() {
         setIsLinePickerDragging(false);
       } else if (dragState.panel === "liveTrackingPill") {
         setIsLiveTrackingPillDragging(false);
-      } else {
+      } else if (dragState.panel === "stopCard") {
         setIsStopCardDragging(false);
+      } else if (dragState.panel === "favoriteLineStrip") {
+        setIsFavoriteLineStripDragging(false);
+      } else {
+        setIsFavoriteStopStripDragging(false);
       }
       if (dragState.hasMoved) {
         suppressClickUntilRef.current = Date.now() + 220;
@@ -607,7 +640,13 @@ export function TransitDashboard() {
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [isLinePickerDragging, isLiveTrackingPillDragging, isStopCardDragging]);
+  }, [
+    isLinePickerDragging,
+    isLiveTrackingPillDragging,
+    isStopCardDragging,
+    isFavoriteLineStripDragging,
+    isFavoriteStopStripDragging,
+  ]);
 
   useEffect(() => {
     const activeDrag = linePickerDragStateRef.current;
@@ -624,10 +663,30 @@ export function TransitDashboard() {
       linePickerDragStateRef.current = null;
       setIsStopCardDragging(false);
     }
+
+    if (
+      activeDrag.panel === "favoriteLineStrip" &&
+      !favoriteLineStripRef.current
+    ) {
+      linePickerDragStateRef.current = null;
+      setIsFavoriteLineStripDragging(false);
+    }
+
+    if (
+      activeDrag.panel === "favoriteStopStrip" &&
+      !favoriteStopStripRef.current
+    ) {
+      linePickerDragStateRef.current = null;
+      setIsFavoriteStopStripDragging(false);
+    }
   }, [
     followedVehicleId,
     vehicleTrackingNotice,
     selectedStop,
+    favoriteLineIds.length,
+    lines.length,
+    favoriteStopsPanelOpen,
+    favoriteStops.length,
     nearbyModeEnabled,
     nearbyStopsLoading,
     nearbyStopsResolved,
@@ -675,6 +734,8 @@ export function TransitDashboard() {
     clampPanelToViewport(linePickerRef.current, setLinePickerOffset);
     clampPanelToViewport(liveTrackingPillRef.current, setLiveTrackingPillOffset);
     clampPanelToViewport(stopCardRef.current, setStopCardOffset);
+    clampPanelToViewport(favoriteLineStripRef.current, setFavoriteLineStripOffset);
+    clampPanelToViewport(favoriteStopStripRef.current, setFavoriteStopStripOffset);
   }
 
   useEffect(() => {
@@ -711,6 +772,10 @@ export function TransitDashboard() {
     followedVehicleStopState,
     isLiveTrackingEnabled,
     liveTrackingRouteId,
+    favoriteLineIds.length,
+    favoriteStopsPanelOpen,
+    favoriteStops.length,
+    lines.length,
   ]);
 
   useEffect(() => {
@@ -1664,7 +1729,12 @@ export function TransitDashboard() {
 
   function startDragForPanel(
     event: ReactPointerEvent<HTMLDivElement>,
-    panel: "linePicker" | "liveTrackingPill" | "stopCard",
+    panel:
+      | "linePicker"
+      | "liveTrackingPill"
+      | "stopCard"
+      | "favoriteLineStrip"
+      | "favoriteStopStrip",
     panelRef: HTMLDivElement | null,
     startOffset: { x: number; y: number },
   ) {
@@ -1715,8 +1785,12 @@ export function TransitDashboard() {
       setIsLinePickerDragging(true);
     } else if (panel === "liveTrackingPill") {
       setIsLiveTrackingPillDragging(true);
-    } else {
+    } else if (panel === "stopCard") {
       setIsStopCardDragging(true);
+    } else if (panel === "favoriteLineStrip") {
+      setIsFavoriteLineStripDragging(true);
+    } else {
+      setIsFavoriteStopStripDragging(true);
     }
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -1738,6 +1812,28 @@ export function TransitDashboard() {
     startDragForPanel(event, "stopCard", stopCardRef.current, stopCardOffset);
   }
 
+  function handleFavoriteLineStripDragStart(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    startDragForPanel(
+      event,
+      "favoriteLineStrip",
+      favoriteLineStripRef.current,
+      favoriteLineStripOffset,
+    );
+  }
+
+  function handleFavoriteStopStripDragStart(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    startDragForPanel(
+      event,
+      "favoriteStopStrip",
+      favoriteStopStripRef.current,
+      favoriteStopStripOffset,
+    );
+  }
+
   function handleDraggablePanelClickCapture(event: React.MouseEvent<HTMLElement>) {
     if (Date.now() <= suppressClickUntilRef.current) {
       event.preventDefault();
@@ -1750,6 +1846,18 @@ export function TransitDashboard() {
   }`;
   const stopCardDraggableStyle = {
     transform: `translate3d(${stopCardOffset.x}px, ${stopCardOffset.y}px, 0)`,
+  } satisfies CSSProperties;
+  const favoriteLineStripDraggableClass = `favorite-strip--draggable${
+    isFavoriteLineStripDragging ? " is-dragging" : ""
+  }`;
+  const favoriteLineStripDraggableStyle = {
+    transform: `translate3d(${favoriteLineStripOffset.x}px, ${favoriteLineStripOffset.y}px, 0)`,
+  } satisfies CSSProperties;
+  const favoriteStopStripDraggableClass = `favorite-stop-strip--draggable${
+    isFavoriteStopStripDragging ? " is-dragging" : ""
+  }`;
+  const favoriteStopStripDraggableStyle = {
+    transform: `translate3d(${favoriteStopStripOffset.x}px, ${favoriteStopStripOffset.y}px, 0)`,
   } satisfies CSSProperties;
 
   return (
@@ -2360,7 +2468,14 @@ export function TransitDashboard() {
 
         <div className="map-overlay map-overlay--bottom">
           {favoriteLines.length > 0 ? (
-            <div className="favorite-strip favorite-strip--floating" aria-label="Lineas favoritas">
+            <div
+              ref={favoriteLineStripRef}
+              className={`favorite-strip favorite-strip--floating ${favoriteLineStripDraggableClass}`}
+              aria-label="Lineas favoritas"
+              onPointerDown={handleFavoriteLineStripDragStart}
+              onClickCapture={handleDraggablePanelClickCapture}
+              style={favoriteLineStripDraggableStyle}
+            >
               <span className="favorite-strip__label">Favoritas</span>
               <div className="favorite-strip__scroller">
                 {favoriteLines.map((line) => (
@@ -2383,9 +2498,13 @@ export function TransitDashboard() {
           ) : null}
           {favoriteStopsPanelOpen ? (
             <div
+              ref={favoriteStopStripRef}
               id="favorite-stops-panel"
-              className="favorite-stop-strip favorite-stop-strip--panel"
+              className={`favorite-stop-strip favorite-stop-strip--panel ${favoriteStopStripDraggableClass}`}
               aria-label="Paradas favoritas"
+              onPointerDown={handleFavoriteStopStripDragStart}
+              onClickCapture={handleDraggablePanelClickCapture}
+              style={favoriteStopStripDraggableStyle}
             >
               {favoriteStops.length > 0 ? (
                 <>

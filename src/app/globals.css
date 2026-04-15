@@ -233,14 +233,18 @@ a {
 }
 
 .live-tracking-pill--draggable,
-.stop-card--draggable {
+.stop-card--draggable,
+.favorite-strip--draggable,
+.favorite-stop-strip--draggable {
   position: relative;
   will-change: transform;
   touch-action: none;
 }
 
 .live-tracking-pill--draggable.is-dragging,
-.stop-card--draggable.is-dragging {
+.stop-card--draggable.is-dragging,
+.favorite-strip--draggable.is-dragging,
+.favorite-stop-strip--draggable.is-dragging {
   z-index: 6;
 }
 
