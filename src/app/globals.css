@@ -1045,10 +1045,52 @@ a {
   backdrop-filter: blur(30px) saturate(190%);
 }
 
+.map-live-controls--collapsed {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .map-live-controls .live-tracking-toggle {
   min-width: 132px;
   height: 32px;
   padding: 0 10px;
+}
+
+.map-live-controls__compact-action {
+  min-width: 80px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+}
+
+.map-live-controls__collapsed-trigger {
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  gap: 6px;
+  font-size: 0.69rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.map-live-controls__collapsed-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .map-status-cluster .live-tracking-route-picker {
@@ -2781,6 +2823,25 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
     min-width: 112px;
     height: 30px;
     padding: 0 9px;
+  }
+
+  .map-live-controls__compact-action {
+    min-width: 72px;
+    height: 30px;
+    padding: 0 8px;
+  }
+
+  .map-live-controls__collapsed-trigger {
+    height: 27px;
+    padding: 0 9px;
+    font-size: 0.66rem;
+  }
+
+  .map-live-controls__collapsed-count {
+    min-width: 18px;
+    height: 18px;
+    font-size: 0.62rem;
+    padding: 0 5px;
   }
 
   .line-picker__live-meta--compact {
