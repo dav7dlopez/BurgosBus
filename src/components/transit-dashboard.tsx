@@ -11,7 +11,14 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { IconBusStop, IconCreditCard, IconMoon, IconSun } from "@tabler/icons-react";
+import {
+  IconBusStop,
+  IconCreditCard,
+  IconMoon,
+  IconStar,
+  IconSun,
+  IconTrash,
+} from "@tabler/icons-react";
 
 import { mapProviders } from "@/lib/map-config";
 import type {
@@ -234,7 +241,7 @@ type FollowedVehicleStopState =
   | null;
 
 type LinePickerDragState = {
-  panel: "linePicker" | "liveTrackingPill" | "stopCard";
+  panel: "linePicker" | "liveTrackingPill" | "stopCard" | "favoritesPanel";
   pointerId: number;
   startClientX: number;
   startClientY: number;
@@ -255,6 +262,9 @@ export function TransitDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [favoriteStopsPanelOpen, setFavoriteStopsPanelOpen] = useState(false);
+  const [favoritesPanelTab, setFavoritesPanelTab] = useState<"lines" | "stops">(
+    "lines",
+  );
   const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
   const [nearbyModeEnabled, setNearbyModeEnabled] = useState(false);
   const [isNearbyPanelMinimized, setIsNearbyPanelMinimized] = useState(false);
@@ -320,6 +330,7 @@ export function TransitDashboard() {
   const linePickerRef = useRef<HTMLDivElement | null>(null);
   const liveTrackingPillRef = useRef<HTMLDivElement | null>(null);
   const stopCardRef = useRef<HTMLDivElement | null>(null);
+  const favoritesPanelRef = useRef<HTMLDivElement | null>(null);
   const linePickerDragStateRef = useRef<LinePickerDragState | null>(null);
   const [linePickerOffset, setLinePickerOffset] = useState({ x: 0, y: 0 });
   const [isLinePickerDragging, setIsLinePickerDragging] = useState(false);
@@ -331,6 +342,8 @@ export function TransitDashboard() {
     useState(false);
   const [stopCardOffset, setStopCardOffset] = useState({ x: 0, y: 0 });
   const [isStopCardDragging, setIsStopCardDragging] = useState(false);
+  const [favoritesPanelOffset, setFavoritesPanelOffset] = useState({ x: 0, y: 0 });
+  const [isFavoritesPanelDragging, setIsFavoritesPanelDragging] = useState(false);
   const suppressClickUntilRef = useRef<number>(0);
 
   useEffect(() => {
@@ -523,7 +536,12 @@ export function TransitDashboard() {
   }, [bonoburPanelOpen]);
 
   useEffect(() => {
-    if (!isLinePickerDragging && !isLiveTrackingPillDragging && !isStopCardDragging) {
+    if (
+      !isLinePickerDragging &&
+      !isLiveTrackingPillDragging &&
+      !isStopCardDragging &&
+      !isFavoritesPanelDragging
+    ) {
       return;
     }
 
@@ -561,8 +579,10 @@ export function TransitDashboard() {
         setLinePickerOffset(nextOffset);
       } else if (dragState.panel === "liveTrackingPill") {
         setLiveTrackingPillOffset(nextOffset);
-      } else {
+      } else if (dragState.panel === "stopCard") {
         setStopCardOffset(nextOffset);
+      } else {
+        setFavoritesPanelOffset(nextOffset);
       }
     }
 
@@ -577,8 +597,10 @@ export function TransitDashboard() {
         setIsLinePickerDragging(false);
       } else if (dragState.panel === "liveTrackingPill") {
         setIsLiveTrackingPillDragging(false);
-      } else {
+      } else if (dragState.panel === "stopCard") {
         setIsStopCardDragging(false);
+      } else {
+        setIsFavoritesPanelDragging(false);
       }
       if (dragState.hasMoved) {
         suppressClickUntilRef.current = Date.now() + 220;
@@ -594,7 +616,12 @@ export function TransitDashboard() {
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [isLinePickerDragging, isLiveTrackingPillDragging, isStopCardDragging]);
+  }, [
+    isFavoritesPanelDragging,
+    isLinePickerDragging,
+    isLiveTrackingPillDragging,
+    isStopCardDragging,
+  ]);
 
   useEffect(() => {
     const activeDrag = linePickerDragStateRef.current;
@@ -611,7 +638,15 @@ export function TransitDashboard() {
       linePickerDragStateRef.current = null;
       setIsStopCardDragging(false);
     }
+
+    if (activeDrag.panel === "favoritesPanel" && !favoritesPanelRef.current) {
+      linePickerDragStateRef.current = null;
+      setIsFavoritesPanelDragging(false);
+    }
   }, [
+    favoriteLineIds.length,
+    favoriteStops.length,
+    favoriteStopsPanelOpen,
     followedVehicleId,
     vehicleTrackingNotice,
     selectedStop,
@@ -662,6 +697,7 @@ export function TransitDashboard() {
     clampPanelToViewport(linePickerRef.current, setLinePickerOffset);
     clampPanelToViewport(liveTrackingPillRef.current, setLiveTrackingPillOffset);
     clampPanelToViewport(stopCardRef.current, setStopCardOffset);
+    clampPanelToViewport(favoritesPanelRef.current, setFavoritesPanelOffset);
   }
 
   useEffect(() => {
@@ -698,6 +734,10 @@ export function TransitDashboard() {
     followedVehicleStopState,
     isLiveTrackingEnabled,
     liveTrackingRouteId,
+    favoriteLineIds.length,
+    favoriteStops.length,
+    favoriteStopsPanelOpen,
+    favoritesPanelTab,
   ]);
 
   useEffect(() => {
@@ -1194,6 +1234,26 @@ export function TransitDashboard() {
   );
 
   useEffect(() => {
+    if (!favoriteStopsPanelOpen) {
+      return;
+    }
+
+    if (favoritesPanelTab === "lines" && favoriteLines.length === 0 && favoriteStops.length > 0) {
+      setFavoritesPanelTab("stops");
+      return;
+    }
+
+    if (favoritesPanelTab === "stops" && favoriteStops.length === 0 && favoriteLines.length > 0) {
+      setFavoritesPanelTab("lines");
+    }
+  }, [
+    favoriteLines.length,
+    favoriteStops.length,
+    favoriteStopsPanelOpen,
+    favoritesPanelTab,
+  ]);
+
+  useEffect(() => {
     if (lines.length === 0) {
       return;
     }
@@ -1436,6 +1496,12 @@ export function TransitDashboard() {
     );
   }
 
+  function removeFavoriteLine(lineId: string) {
+    setFavoriteLineIds((current) =>
+      current.filter((favoriteId) => favoriteId !== lineId),
+    );
+  }
+
   function startFollowingVehicle(vehicle: VehiclePosition) {
     setVehicleTrackingNotice(null);
     if (previousLiveTrackingRouteIdBeforeFollowRef.current === undefined) {
@@ -1464,6 +1530,12 @@ export function TransitDashboard() {
       current.some((favoriteStop) => favoriteStop.id === stop.id)
         ? current.filter((favoriteStop) => favoriteStop.id !== stop.id)
         : [...current, { id: stop.id, name: stop.name, lineId: selectedLineId || null }],
+    );
+  }
+
+  function removeFavoriteStop(stopId: string) {
+    setFavoriteStops((current) =>
+      current.filter((favoriteStop) => favoriteStop.id !== stopId),
     );
   }
 
@@ -1614,7 +1686,7 @@ export function TransitDashboard() {
 
   function startDragForPanel(
     event: ReactPointerEvent<HTMLDivElement>,
-    panel: "linePicker" | "liveTrackingPill" | "stopCard",
+    panel: "linePicker" | "liveTrackingPill" | "stopCard" | "favoritesPanel",
     panelRef: HTMLDivElement | null,
     startOffset: { x: number; y: number },
   ) {
@@ -1665,8 +1737,10 @@ export function TransitDashboard() {
       setIsLinePickerDragging(true);
     } else if (panel === "liveTrackingPill") {
       setIsLiveTrackingPillDragging(true);
-    } else {
+    } else if (panel === "stopCard") {
       setIsStopCardDragging(true);
+    } else {
+      setIsFavoritesPanelDragging(true);
     }
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -1688,6 +1762,15 @@ export function TransitDashboard() {
     startDragForPanel(event, "stopCard", stopCardRef.current, stopCardOffset);
   }
 
+  function handleFavoritesPanelDragStart(event: ReactPointerEvent<HTMLDivElement>) {
+    startDragForPanel(
+      event,
+      "favoritesPanel",
+      favoritesPanelRef.current,
+      favoritesPanelOffset,
+    );
+  }
+
   function handleDraggablePanelClickCapture(event: React.MouseEvent<HTMLElement>) {
     if (Date.now() <= suppressClickUntilRef.current) {
       event.preventDefault();
@@ -1700,6 +1783,12 @@ export function TransitDashboard() {
   }`;
   const stopCardDraggableStyle = {
     transform: `translate3d(${stopCardOffset.x}px, ${stopCardOffset.y}px, 0)`,
+  } satisfies CSSProperties;
+  const favoritesPanelDraggableClass = `favorites-panel--draggable${
+    isFavoritesPanelDragging ? " is-dragging" : ""
+  }`;
+  const favoritesPanelDraggableStyle = {
+    transform: `translate3d(${favoritesPanelOffset.x}px, ${favoritesPanelOffset.y}px, 0)`,
   } satisfies CSSProperties;
 
   return (
@@ -1964,26 +2053,26 @@ export function TransitDashboard() {
                 }`}
                 aria-label={
                   favoriteStopsPanelOpen
-                    ? "Ocultar paradas favoritas"
-                    : "Mostrar paradas favoritas"
+                    ? "Ocultar panel de favoritos"
+                    : "Mostrar panel de favoritos"
                 }
                 aria-expanded={favoriteStopsPanelOpen}
-                aria-controls="favorite-stops-panel"
+                aria-controls="favorites-panel"
                 title={
                   favoriteStopsPanelOpen
-                    ? "Ocultar paradas favoritas"
-                    : "Mostrar paradas favoritas"
+                    ? "Ocultar favoritos"
+                    : "Mostrar favoritos"
                 }
                 onClick={() => setFavoriteStopsPanelOpen((current) => !current)}
               >
-                <IconBusStop
+                <IconStar
                   size={14}
                   strokeWidth={2}
                   aria-hidden="true"
                   focusable="false"
                   className="theme-toggle__icon"
                 />
-                <span className="theme-toggle__utility-label">Fav.</span>
+                <span className="theme-toggle__utility-label">Favs</span>
               </button>
             </div>
           </div>
@@ -2307,68 +2396,163 @@ export function TransitDashboard() {
         </div>
 
         <div className="map-overlay map-overlay--bottom">
-          {favoriteLines.length > 0 ? (
-            <div className="favorite-strip favorite-strip--floating" aria-label="Lineas favoritas">
-              <span className="favorite-strip__label">Favoritas</span>
-              <div className="favorite-strip__scroller">
-                {favoriteLines.map((line) => (
-                  <button
-                    key={line.id}
-                    type="button"
-                    className={`favorite-line-chip${
-                      line.id === selectedLineId ? " is-active" : ""
-                    }`}
-                    onClick={() => setSelectedLineId(line.id)}
-                  >
-                    <span className="favorite-line-chip__icon" aria-hidden="true">
-                      ★
-                    </span>
-                    {line.publicCode}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
           {favoriteStopsPanelOpen ? (
             <div
-              id="favorite-stops-panel"
-              className="favorite-stop-strip favorite-stop-strip--panel"
-              aria-label="Paradas favoritas"
+              ref={favoritesPanelRef}
+              id="favorites-panel"
+              className={`favorites-panel ${favoritesPanelDraggableClass}`}
+              aria-label="Panel de favoritos"
+              onPointerDown={handleFavoritesPanelDragStart}
+              onClickCapture={handleDraggablePanelClickCapture}
+              style={favoritesPanelDraggableStyle}
             >
-              {favoriteStops.length > 0 ? (
-                <>
-                  <span className="favorite-stop-strip__label">
-                    Paradas favoritas
-                  </span>
-                  <div className="favorite-stop-strip__scroller">
+              <div className="favorites-panel__header">
+                <div className="favorites-panel__header-row">
+                  <span className="favorites-panel__eyebrow">Favoritos</span>
+                  <button
+                    type="button"
+                    className="favorites-panel__close"
+                    onClick={() => setFavoriteStopsPanelOpen(false)}
+                    aria-label="Cerrar panel de favoritos"
+                    title="Cerrar favoritos"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div
+                  className="favorites-panel__tabs"
+                  role="tablist"
+                  aria-label="Tipos de favoritos"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={favoritesPanelTab === "lines"}
+                    className={`favorites-panel__tab${
+                      favoritesPanelTab === "lines" ? " is-active" : ""
+                    }`}
+                    onClick={() => setFavoritesPanelTab("lines")}
+                  >
+                    Líneas
+                    <span className="favorites-panel__tab-count">
+                      {favoriteLines.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={favoritesPanelTab === "stops"}
+                    className={`favorites-panel__tab${
+                      favoritesPanelTab === "stops" ? " is-active" : ""
+                    }`}
+                    onClick={() => setFavoritesPanelTab("stops")}
+                  >
+                    Paradas
+                    <span className="favorites-panel__tab-count">
+                      {favoriteStops.length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="favorites-panel__body">
+                {favoritesPanelTab === "lines" ? (
+                  favoriteLines.length > 0 ? (
+                    <div className="favorites-panel__list" role="list">
+                      {favoriteLines.map((line) => (
+                        <div
+                          key={line.id}
+                          role="listitem"
+                          className={`favorites-panel__item${
+                            line.id === selectedLineId ? " is-active" : ""
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="favorites-panel__item-main-button"
+                            onClick={() => setSelectedLineId(line.id)}
+                            title={`${line.publicCode} ${line.displayName}`}
+                          >
+                            <span className="favorites-panel__item-main">
+                              {line.publicCode} {line.displayName}
+                            </span>
+                            <span className="favorites-panel__item-meta">
+                              {line.isActiveNow === false
+                                ? "Sin servicio"
+                                : "En servicio"}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="favorites-panel__item-remove"
+                            onClick={() => removeFavoriteLine(line.id)}
+                            aria-label={`Eliminar línea ${line.publicCode} de favoritas`}
+                            title="Eliminar de favoritas"
+                            data-no-drag
+                          >
+                            <IconTrash
+                              size={14}
+                              strokeWidth={2}
+                              aria-hidden="true"
+                              focusable="false"
+                            />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="favorites-panel__empty">
+                      <strong>No hay líneas favoritas aún</strong>
+                      <p>Marca una línea con la estrella para verla aquí.</p>
+                    </div>
+                  )
+                ) : favoriteStops.length > 0 ? (
+                  <div className="favorites-panel__list" role="list">
                     {favoriteStops.map((favoriteStop) => (
-                      <button
+                      <div
                         key={favoriteStop.id}
-                        type="button"
-                        className={`favorite-stop-chip${
+                        role="listitem"
+                        className={`favorites-panel__item${
                           favoriteStop.id === selectedStop?.id ? " is-active" : ""
                         }`}
-                        onClick={() => reopenFavoriteStop(favoriteStop)}
-                        title={favoriteStop.name}
                       >
-                        <span className="favorite-stop-chip__name">
-                          {favoriteStop.name}
-                        </span>
-                        <span className="favorite-stop-chip__meta">
-                          #{favoriteStop.id}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          className="favorites-panel__item-main-button"
+                          onClick={() => reopenFavoriteStop(favoriteStop)}
+                          title={favoriteStop.name}
+                        >
+                          <span className="favorites-panel__item-main">
+                            {favoriteStop.name}
+                          </span>
+                          <span className="favorites-panel__item-meta">
+                            #{favoriteStop.id}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="favorites-panel__item-remove"
+                          onClick={() => removeFavoriteStop(favoriteStop.id)}
+                          aria-label={`Eliminar parada ${favoriteStop.name} de favoritas`}
+                          title="Eliminar de favoritas"
+                          data-no-drag
+                        >
+                          <IconTrash
+                            size={14}
+                            strokeWidth={2}
+                            aria-hidden="true"
+                            focusable="false"
+                          />
+                        </button>
+                      </div>
                     ))}
                   </div>
-                </>
-              ) : (
-                <div className="favorite-stop-empty">
-                  <strong>No hay paradas favoritas aún</strong>
-                  <p>
-                    Guarda una parada desde su panel para tenerla aquí a mano.
-                  </p>
-                </div>
-              )}
+                ) : (
+                  <div className="favorites-panel__empty">
+                    <strong>No hay paradas favoritas aún</strong>
+                    <p>Guarda una parada desde su panel para tenerla aquí a mano.</p>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
           {geolocationStatus === "insecure" ? (
