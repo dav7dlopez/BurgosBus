@@ -366,6 +366,32 @@ export function TransitDashboard() {
       return;
     }
 
+    const root = document.documentElement;
+    const isTouchMac =
+      navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || isTouchMac;
+    const standaloneFlag = (navigator as Navigator & { standalone?: boolean })
+      .standalone;
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      standaloneFlag === true;
+
+    if (isIOSDevice && !isStandalone) {
+      root.dataset.mobileBrowser = "ios";
+    } else {
+      delete root.dataset.mobileBrowser;
+    }
+
+    return () => {
+      delete root.dataset.mobileBrowser;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     const savedState = window.localStorage.getItem(
       DEFAULT_INFO_PANEL_MINIMIZED_STORAGE_KEY,
     );
