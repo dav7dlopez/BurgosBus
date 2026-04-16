@@ -31,6 +31,17 @@
   --mobile-safe-right: max(var(--safe-right), var(--browser-ui-right));
   --mobile-safe-bottom: max(var(--safe-bottom), var(--browser-ui-bottom));
   --mobile-safe-left: max(var(--safe-left), var(--browser-ui-left));
+  --ios-overlay-clearance: 0px;
+  --overlay-safe-bottom: max(var(--mobile-safe-bottom), var(--ios-overlay-clearance));
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media (hover: none) and (pointer: coarse) {
+    :root {
+      /* Conservative floor so floating controls remain above iOS bottom chrome. */
+      --ios-overlay-clearance: 44px;
+    }
+  }
 }
 
 html[data-theme="dark"] {
@@ -1022,7 +1033,7 @@ a {
 .map-overlay--bottom {
   left: 16px;
   right: 16px;
-  bottom: calc(16px + var(--mobile-safe-bottom));
+  bottom: calc(16px + var(--overlay-safe-bottom));
   display: grid;
   justify-items: start;
   align-content: end;
@@ -1032,7 +1043,7 @@ a {
 .map-overlay--context {
   top: auto;
   right: 10px;
-  bottom: calc(12px + var(--mobile-safe-bottom));
+  bottom: calc(12px + var(--overlay-safe-bottom));
   display: grid;
   justify-items: end;
   align-content: start;
@@ -1502,7 +1513,7 @@ a {
 
 .map-recenter-button {
   position: absolute;
-  bottom: calc(16px + var(--mobile-safe-bottom));
+  bottom: calc(16px + var(--overlay-safe-bottom));
   left: 58px;
   z-index: 950;
   width: 44px;
@@ -2931,7 +2942,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .map-overlay--context {
     top: auto;
     right: 6px;
-    bottom: calc(8px + var(--mobile-safe-bottom));
+    bottom: calc(8px + var(--overlay-safe-bottom));
     gap: 6px;
   }
 
@@ -3086,7 +3097,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .map-overlay--bottom {
     left: 10px;
     right: 10px;
-    bottom: calc(10px + var(--mobile-safe-bottom));
+    bottom: calc(10px + var(--overlay-safe-bottom));
     gap: 8px;
   }
 
@@ -3165,7 +3176,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .map-recenter-button {
-    bottom: calc(10px + var(--mobile-safe-bottom));
+    bottom: calc(10px + var(--overlay-safe-bottom));
     left: 56px;
     width: 40px;
     height: 40px;
