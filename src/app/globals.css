@@ -36,10 +36,10 @@
 }
 
 @supports (-webkit-touch-callout: none) {
-  @media (hover: none) and (pointer: coarse) {
+  @media (max-width: 720px) {
     :root {
-      /* Conservative floor so floating controls remain above iOS bottom chrome. */
-      --ios-overlay-clearance: 44px;
+      /* Keep mobile overlays clear of iOS browser chrome on compact viewports. */
+      --ios-overlay-clearance: 104px;
     }
   }
 }
@@ -3219,9 +3219,16 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .map-stage {
+    height: calc(100% + var(--overlay-safe-bottom));
+    margin-bottom: calc(-1 * var(--overlay-safe-bottom));
     box-shadow:
       0 22px 56px rgba(15, 23, 42, 0.18),
       0 0 0 1px var(--map-border);
+  }
+
+  .leaflet-bottom .leaflet-control-attribution {
+    margin-bottom: 0 !important;
+    opacity: 0.86;
   }
 }
 
