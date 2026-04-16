@@ -1022,6 +1022,16 @@ a {
   box-shadow: none;
 }
 
+.map-bottom-fill {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
 .leaflet-map {
   min-height: 0;
 }
@@ -3229,6 +3239,12 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
     box-shadow:
       0 22px 56px rgba(15, 23, 42, 0.18),
       0 0 0 1px var(--map-border);
+  }
+
+  .map-bottom-fill {
+    display: block;
+    height: max(18px, var(--overlay-safe-bottom));
+    background: var(--bg);
   }
 }
 

@@ -3001,6 +3001,7 @@ export function TransitDashboard() {
           />
         </div>
       </section>
+      <div className="map-bottom-fill" aria-hidden="true" />
     </main>
   );
 }
