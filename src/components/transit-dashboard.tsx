@@ -467,7 +467,74 @@ export function TransitDashboard() {
 
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+    // Keep browser chrome color aligned with the in-app theme, especially on iOS.
+    const nextThemeColor = theme === "dark" ? "#000000" : "#edf2f6";
+    let themeColorMeta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
+    if (!themeColorMeta) {
+      themeColorMeta = document.createElement("meta");
+      themeColorMeta.name = "theme-color";
+      document.head.appendChild(themeColorMeta);
+    }
+    themeColorMeta.content = nextThemeColor;
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+
+    const applyInsets = () => {
+      if (!viewport) {
+        root.style.setProperty("--browser-ui-top", "0px");
+        root.style.setProperty("--browser-ui-right", "0px");
+        root.style.setProperty("--browser-ui-bottom", "0px");
+        root.style.setProperty("--browser-ui-left", "0px");
+        return;
+      }
+
+      const keyboardLikelyOpen = window.innerHeight - viewport.height > 260;
+      const bottomInset = keyboardLikelyOpen
+        ? 0
+        : Math.max(
+            0,
+            window.innerHeight - (viewport.height + viewport.offsetTop),
+          );
+      const topInset = Math.max(0, viewport.offsetTop);
+      const leftInset = Math.max(0, viewport.offsetLeft);
+      const rightInset = Math.max(
+        0,
+        window.innerWidth - (viewport.width + viewport.offsetLeft),
+      );
+
+      root.style.setProperty("--browser-ui-top", `${Math.round(topInset)}px`);
+      root.style.setProperty("--browser-ui-right", `${Math.round(rightInset)}px`);
+      root.style.setProperty("--browser-ui-bottom", `${Math.round(bottomInset)}px`);
+      root.style.setProperty("--browser-ui-left", `${Math.round(leftInset)}px`);
+    };
+
+    applyInsets();
+    viewport?.addEventListener("resize", applyInsets);
+    viewport?.addEventListener("scroll", applyInsets);
+    window.addEventListener("resize", applyInsets);
+    window.addEventListener("orientationchange", applyInsets);
+
+    return () => {
+      viewport?.removeEventListener("resize", applyInsets);
+      viewport?.removeEventListener("scroll", applyInsets);
+      window.removeEventListener("resize", applyInsets);
+      window.removeEventListener("orientationchange", applyInsets);
+      root.style.setProperty("--browser-ui-top", "0px");
+      root.style.setProperty("--browser-ui-right", "0px");
+      root.style.setProperty("--browser-ui-bottom", "0px");
+      root.style.setProperty("--browser-ui-left", "0px");
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
