@@ -23,6 +23,14 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+  --browser-ui-top: 0px;
+  --browser-ui-right: 0px;
+  --browser-ui-bottom: 0px;
+  --browser-ui-left: 0px;
+  --mobile-safe-top: max(var(--safe-top), var(--browser-ui-top));
+  --mobile-safe-right: max(var(--safe-right), var(--browser-ui-right));
+  --mobile-safe-bottom: max(var(--safe-bottom), var(--browser-ui-bottom));
+  --mobile-safe-left: max(var(--safe-left), var(--browser-ui-left));
 }
 
 html[data-theme="dark"] {
@@ -106,10 +114,10 @@ a {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
-  padding-top: max(8px, var(--safe-top));
-  padding-right: max(8px, var(--safe-right));
+  padding-top: max(8px, var(--mobile-safe-top));
+  padding-right: max(8px, var(--mobile-safe-right));
   padding-bottom: 0;
-  padding-left: max(8px, var(--safe-left));
+  padding-left: max(8px, var(--mobile-safe-left));
 }
 
 .topbar {
@@ -1014,7 +1022,7 @@ a {
 .map-overlay--bottom {
   left: 16px;
   right: 16px;
-  bottom: calc(16px + var(--safe-bottom));
+  bottom: calc(16px + var(--mobile-safe-bottom));
   display: grid;
   justify-items: start;
   align-content: end;
@@ -1024,7 +1032,7 @@ a {
 .map-overlay--context {
   top: auto;
   right: 10px;
-  bottom: calc(12px + var(--safe-bottom));
+  bottom: calc(12px + var(--mobile-safe-bottom));
   display: grid;
   justify-items: end;
   align-content: start;
@@ -1494,7 +1502,7 @@ a {
 
 .map-recenter-button {
   position: absolute;
-  bottom: calc(16px + var(--safe-bottom));
+  bottom: calc(16px + var(--mobile-safe-bottom));
   left: 58px;
   z-index: 950;
   width: 44px;
@@ -2724,10 +2732,10 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 @media (max-width: 720px) {
   .app-shell {
     gap: 6px;
-    padding-top: max(6px, var(--safe-top));
-    padding-right: max(6px, var(--safe-right));
+    padding-top: max(6px, var(--mobile-safe-top));
+    padding-right: max(6px, var(--mobile-safe-right));
     padding-bottom: 0;
-    padding-left: max(6px, var(--safe-left));
+    padding-left: max(6px, var(--mobile-safe-left));
     height: 100svh;
     height: 100dvh;
     min-height: 100lvh;
@@ -2923,7 +2931,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .map-overlay--context {
     top: auto;
     right: 6px;
-    bottom: calc(8px + var(--safe-bottom));
+    bottom: calc(8px + var(--mobile-safe-bottom));
     gap: 6px;
   }
 
@@ -3078,7 +3086,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .map-overlay--bottom {
     left: 10px;
     right: 10px;
-    bottom: calc(10px + var(--safe-bottom));
+    bottom: calc(10px + var(--mobile-safe-bottom));
     gap: 8px;
   }
 
@@ -3157,7 +3165,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .map-recenter-button {
-    bottom: calc(10px + var(--safe-bottom));
+    bottom: calc(10px + var(--mobile-safe-bottom));
     left: 56px;
     width: 40px;
     height: 40px;
