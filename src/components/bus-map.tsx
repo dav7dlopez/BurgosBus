@@ -4,7 +4,6 @@ import { Fragment, useEffect, useMemo, useRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   IconBus,
-  IconChevronRight,
   IconCurrentLocation,
 } from "@tabler/icons-react";
 import L, {
@@ -63,6 +62,11 @@ type StopMarkerData = Stop & {
 
 const MIN_STOP_ROUTE_OFFSET = 0.00003;
 const MAX_STOP_ROUTE_OFFSET = 0.000075;
+const HEADING_STILL_DISTANCE = 0.00001;
+const HEADING_MAX_STEP_DEGREES = 40;
+const HEADING_MAX_STEP_FAST_DEGREES = 62;
+const HEADING_FAST_DISTANCE = 0.00018;
+const UPSTREAM_HEADING_MAX_DELTA = 55;
 
 function getRouteRenderKey(route: RouteShape) {
   const firstPoint = route.path[0];
@@ -109,14 +113,18 @@ function createBusIcon(
   liveTrackingEnabled: boolean,
   isFollowed: boolean,
 ): DivIcon {
-  const normalizedHeading = ((rotationDeg % 360) + 360) % 360;
-  const directionFlip = normalizedHeading > 90 && normalizedHeading < 270 ? -1 : 1;
+  const directionRotation = Number.isFinite(rotationDeg)
+    ? ((rotationDeg % 360) + 360) % 360
+    : 0;
   const busIcon = renderToStaticMarkup(
     <IconBus size={20} strokeWidth={2} aria-hidden="true" focusable="false" />,
   );
-  const directionIcon = renderToStaticMarkup(
-    <IconChevronRight size={9} strokeWidth={2.4} aria-hidden="true" focusable="false" />,
-  );
+  const directionIcon = `
+    <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M2 6h5.1" />
+      <path d="M5.6 3.5 9 6l-3.4 2.5" />
+    </svg>
+  `;
 
   return divIcon({
     className: "",
@@ -126,7 +134,7 @@ function createBusIcon(
     html: `
       <span class="bus-vehicle-icon${liveTrackingEnabled ? " is-live" : ""}${
         isFollowed ? " is-followed" : ""
-      }" style="--route-color:${color}; --direction-flip:${directionFlip};">
+      }" style="--route-color:${color}; --direction-rotation:${directionRotation}deg;">
         <span class="bus-vehicle-icon__shell">
           <span class="bus-vehicle-icon__bus">${busIcon}</span>
           <span class="bus-vehicle-icon__direction">${directionIcon}</span>
@@ -134,6 +142,48 @@ function createBusIcon(
       </span>
     `,
   });
+}
+
+function normalizeDegrees(value: number) {
+  return ((value % 360) + 360) % 360;
+}
+
+function getShortestAngleDelta(fromDeg: number, toDeg: number) {
+  const normalizedFrom = normalizeDegrees(fromDeg);
+  const normalizedTo = normalizeDegrees(toDeg);
+  const rawDelta = normalizedTo - normalizedFrom;
+
+  if (rawDelta > 180) {
+    return rawDelta - 360;
+  }
+
+  if (rawDelta < -180) {
+    return rawDelta + 360;
+  }
+
+  return rawDelta;
+}
+
+function getHeadingFromRouteSegment(
+  start: { lat: number; lng: number },
+  end: { lat: number; lng: number },
+) {
+  // Convert geographic north-up coordinates into screen rotation (Y axis down).
+  return (
+    (Math.atan2(-(end.lat - start.lat), end.lng - start.lng) * 180) / Math.PI
+  );
+}
+
+function getHeadingFromUpstreamDegrees(headingDegrees: number) {
+  // Upstream heading is typically compass-based: 0° north, 90° east.
+  // Bus marker direction uses screen rotation where 0° points right (east).
+  return normalizeDegrees(90 - headingDegrees);
+}
+
+function clampHeadingStep(fromDeg: number, toDeg: number, maxStepDeg: number) {
+  const delta = getShortestAngleDelta(fromDeg, toDeg);
+  const limitedDelta = Math.max(-maxStepDeg, Math.min(maxStepDeg, delta));
+  return normalizeDegrees(fromDeg + limitedDelta);
 }
 
 const userLocationIcon = divIcon({
@@ -549,9 +599,15 @@ function getVehiclePlacement(
   vehicle: VehiclePosition,
   route: RouteShape | undefined,
 ) {
+  const rawHeading = vehicle.headingDegrees;
+  const upstreamHeading =
+    typeof rawHeading === "number" && Number.isFinite(rawHeading)
+      ? getHeadingFromUpstreamDegrees(rawHeading)
+      : null;
+
   if (!route || route.path.length < 2) {
     return {
-      heading: vehicle.headingDegrees ?? 0,
+      heading: upstreamHeading ?? 0,
       lat: vehicle.lat,
       lng: vehicle.lng,
     };
@@ -570,7 +626,7 @@ function getVehiclePlacement(
     const start = route.path[index];
     const end = route.path[index + 1];
     const projection = getProjectedPositionOnSegment(vehicle, start, end);
-    const heading = (Math.atan2(end.lat - start.lat, end.lng - start.lng) * 180) / Math.PI;
+    const heading = getHeadingFromRouteSegment(start, end);
 
     if (!bestPlacement || projection.distance < bestPlacement.distance) {
       bestPlacement = {
@@ -584,18 +640,22 @@ function getVehiclePlacement(
 
   if (!bestPlacement) {
     return {
-      heading: vehicle.headingDegrees ?? 0,
+      heading: upstreamHeading ?? 0,
       lat: vehicle.lat,
       lng: vehicle.lng,
     };
   }
 
+  const routeHeading = normalizeDegrees(bestPlacement.heading);
+  const headingToRender =
+    upstreamHeading !== null &&
+    Math.abs(getShortestAngleDelta(routeHeading, upstreamHeading)) <=
+      UPSTREAM_HEADING_MAX_DELTA
+      ? upstreamHeading
+      : routeHeading;
+
   return {
-    heading:
-      Number.isFinite(vehicle.headingDegrees) &&
-      Math.abs((vehicle.headingDegrees ?? 0) - bestPlacement.heading) < 120
-        ? (vehicle.headingDegrees ?? 0)
-        : bestPlacement.heading,
+    heading: headingToRender,
     lat: bestPlacement.lat,
     lng: bestPlacement.lng,
   };
@@ -620,6 +680,9 @@ export function BusMap({
   followedVehicleId = null,
   onFollowVehicle,
 }: BusMapProps) {
+  const vehicleHeadingStateRef = useRef<
+    Map<string, { heading: number; lat: number; lng: number }>
+  >(new Map());
   const visibleRoutes = useMemo(
     () =>
       liveTrackingEnabled && liveTrackingRouteId
@@ -658,7 +721,7 @@ export function BusMap({
       }),
     [routesById, stops],
   );
-  const positionedVehicles = useMemo(
+  const routePositionedVehicles = useMemo(
     () =>
       visibleVehicles.map((vehicle) => {
         const route = routesById.get(vehicle.routeId ?? "");
@@ -675,6 +738,54 @@ export function BusMap({
       }),
     [routesById, visibleVehicles],
   );
+  const positionedVehicles = useMemo(() => {
+    const nextHeadingState = new Map<
+      string,
+      { heading: number; lat: number; lng: number }
+    >();
+
+    const smoothedVehicles = routePositionedVehicles.map((vehicle) => {
+      const previousHeading = vehicleHeadingStateRef.current.get(vehicle.vehicleId);
+      const targetHeading = normalizeDegrees(vehicle.markerHeading);
+      let headingForRender = targetHeading;
+
+      if (previousHeading) {
+        const movementDistance = Math.hypot(
+          vehicle.markerLat - previousHeading.lat,
+          vehicle.markerLng - previousHeading.lng,
+        );
+
+        if (movementDistance <= HEADING_STILL_DISTANCE) {
+          headingForRender = previousHeading.heading;
+        } else {
+          const maxStep =
+            movementDistance > HEADING_FAST_DISTANCE
+              ? HEADING_MAX_STEP_FAST_DEGREES
+              : HEADING_MAX_STEP_DEGREES;
+          headingForRender = clampHeadingStep(
+            previousHeading.heading,
+            targetHeading,
+            maxStep,
+          );
+        }
+      }
+
+      nextHeadingState.set(vehicle.vehicleId, {
+        heading: headingForRender,
+        lat: vehicle.markerLat,
+        lng: vehicle.markerLng,
+      });
+
+      return {
+        ...vehicle,
+        markerHeading: headingForRender,
+      };
+    });
+
+    vehicleHeadingStateRef.current = nextHeadingState;
+
+    return smoothedVehicles;
+  }, [routePositionedVehicles]);
   const followedVehicle = useMemo(
     () =>
       followedVehicleId
