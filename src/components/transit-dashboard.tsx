@@ -478,6 +478,7 @@ export function TransitDashboard() {
       themeColorMeta.name = "theme-color";
       document.head.appendChild(themeColorMeta);
     }
+    themeColorMeta.removeAttribute("media");
     themeColorMeta.content = nextThemeColor;
   }, [theme]);
 
@@ -499,17 +500,25 @@ export function TransitDashboard() {
       }
 
       const keyboardLikelyOpen = window.innerHeight - viewport.height > 260;
+      const layoutViewportHeight = Math.max(
+        document.documentElement.clientHeight,
+        window.innerHeight,
+      );
+      const layoutViewportWidth = Math.max(
+        document.documentElement.clientWidth,
+        window.innerWidth,
+      );
       const bottomInset = keyboardLikelyOpen
         ? 0
         : Math.max(
             0,
-            window.innerHeight - (viewport.height + viewport.offsetTop),
+            layoutViewportHeight - (viewport.height + viewport.offsetTop),
           );
       const topInset = Math.max(0, viewport.offsetTop);
       const leftInset = Math.max(0, viewport.offsetLeft);
       const rightInset = Math.max(
         0,
-        window.innerWidth - (viewport.width + viewport.offsetLeft),
+        layoutViewportWidth - (viewport.width + viewport.offsetLeft),
       );
 
       root.style.setProperty("--browser-ui-top", `${Math.round(topInset)}px`);
