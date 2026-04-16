@@ -33,6 +33,7 @@
   --mobile-safe-left: max(var(--safe-left), var(--browser-ui-left));
   --ios-overlay-clearance: 0px;
   --overlay-safe-bottom: max(var(--mobile-safe-bottom), var(--ios-overlay-clearance));
+  --mobile-map-tail: 0px;
 }
 
 @supports (-webkit-touch-callout: none) {
@@ -97,7 +98,8 @@ body {
   min-height: 100%;
   min-height: 100dvh;
   min-height: 100lvh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .leaflet-container {
@@ -1024,12 +1026,8 @@ a {
 
 .map-bottom-fill {
   display: none;
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
   pointer-events: none;
-  z-index: 100;
 }
 
 .leaflet-map {
@@ -2792,6 +2790,10 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 }
 
 @media (max-width: 720px) {
+  :root {
+    --mobile-map-tail: clamp(88px, 16vh, 132px);
+  }
+
   .app-shell {
     gap: 6px;
     padding-top: 6px;
@@ -3243,7 +3245,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 
   .map-bottom-fill {
     display: block;
-    height: max(18px, var(--overlay-safe-bottom));
+    height: max(var(--mobile-map-tail), calc(var(--overlay-safe-bottom) + 22px));
     background: var(--bg);
   }
 }
