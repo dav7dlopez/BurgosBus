@@ -22,13 +22,25 @@ const appDisplay = Sora({
 export const metadata: Metadata = {
   title: "Autobuses Burgos",
   description: "Visualizacion en tiempo real de autobuses urbanos de Burgos",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Autobuses Burgos",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#edf2f6",
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#edf2f6" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
 };
 
 export default function RootLayout({
@@ -37,7 +49,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('bus-burgos-theme');var theme=(t==='dark'||t==='light')?t:'light';document.documentElement.dataset.theme=theme;var c=theme==='dark'?'#000000':'#edf2f6';var m=document.querySelector('meta[name="theme-color"]');if(m){m.removeAttribute('media');m.setAttribute('content',c);} }catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${appSans.variable} ${appDisplay.variable} ${geistMono.variable}`}
       >
