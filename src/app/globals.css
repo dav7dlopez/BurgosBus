@@ -2777,7 +2777,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 @media (max-width: 720px) {
   .app-shell {
     gap: 6px;
-    padding-top: 4px;
+    padding-top: 6px;
     padding-right: max(6px, var(--mobile-safe-right));
     padding-bottom: 0;
     padding-left: max(6px, var(--mobile-safe-left));
@@ -3228,33 +3228,5 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 @media (display-mode: standalone) {
   .app-shell {
     padding-top: max(8px, var(--mobile-safe-top));
-  }
-}
-
-@media (max-width: 720px) {
-  html[data-mobile-browser="ios"] .app-shell {
-    gap: 0;
-    padding-top: 0;
-    padding-right: 0;
-    padding-bottom: 0;
-    padding-left: 0;
-  }
-
-  html[data-mobile-browser="ios"] .topbar {
-    border-radius: 0 0 16px 16px;
-    border-left: 0;
-    border-right: 0;
-  }
-
-  html[data-mobile-browser="ios"] .map-stage,
-  html[data-mobile-browser="ios"] .map-shell {
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  html[data-mobile-browser="ios"] .map-overlay--top {
-    top: 8px;
-    left: 8px;
-    right: 8px;
   }
 }
