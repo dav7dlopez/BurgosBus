@@ -19,6 +19,10 @@
   --map-border: rgba(255, 255, 255, 0.52);
   --map-glow: rgba(15, 118, 110, 0.18);
   --icon-core: rgba(255, 255, 255, 0.95);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 html[data-theme="dark"] {
@@ -51,8 +55,10 @@ html[data-theme="dark"] {
 html,
 body {
   height: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
+  background-color: var(--bg);
   background:
     radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 24%),
     radial-gradient(circle at 88% 12%, rgba(59, 130, 246, 0.12), transparent 18%),
@@ -64,7 +70,9 @@ body {
 }
 
 body {
+  min-height: 100svh;
   min-height: 100dvh;
+  min-height: 100lvh;
   overflow: hidden;
 }
 
@@ -91,12 +99,16 @@ a {
 }
 
 .app-shell {
+  height: 100svh;
   height: 100dvh;
-  min-height: 100svh;
+  min-height: 100lvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
-  padding: 8px 8px 0;
+  padding-top: calc(8px + var(--safe-top));
+  padding-right: calc(8px + var(--safe-right));
+  padding-bottom: max(0px, var(--safe-bottom));
+  padding-left: calc(8px + var(--safe-left));
 }
 
 .topbar {
@@ -2711,9 +2723,13 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 @media (max-width: 720px) {
   .app-shell {
     gap: 6px;
-    padding: 6px 6px 0;
+    padding-top: calc(6px + var(--safe-top));
+    padding-right: calc(6px + var(--safe-right));
+    padding-bottom: max(2px, var(--safe-bottom));
+    padding-left: calc(6px + var(--safe-left));
+    height: 100svh;
     height: 100dvh;
-    min-height: 100svh;
+    min-height: 100lvh;
   }
 
   .topbar {
