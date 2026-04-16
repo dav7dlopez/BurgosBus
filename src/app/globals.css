@@ -122,6 +122,13 @@ body {
   padding: 2px 8px;
   backdrop-filter: blur(16px) saturate(160%);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+  transform: translateY(calc(100% + 18px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.leaflet-bottom .leaflet-control-attribution {
+  margin-bottom: -24px;
 }
 
 .leaflet-control-attribution a {
