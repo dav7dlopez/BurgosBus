@@ -489,10 +489,6 @@ export function TransitDashboard() {
 
     const root = document.documentElement;
     const viewport = window.visualViewport;
-    const isTouchMac =
-      navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-    const isIOSLikeBrowser =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) || isTouchMac;
 
     const applyInsets = () => {
       if (!viewport) {
@@ -512,41 +508,18 @@ export function TransitDashboard() {
         document.documentElement.clientWidth,
         window.innerWidth,
       );
+      const bottomInset = keyboardLikelyOpen
+        ? 0
+        : Math.max(
+            0,
+            layoutViewportHeight - (viewport.height + viewport.offsetTop),
+          );
       const topInset = Math.max(0, viewport.offsetTop);
       const leftInset = Math.max(0, viewport.offsetLeft);
       const rightInset = Math.max(
         0,
         layoutViewportWidth - (viewport.width + viewport.offsetLeft),
       );
-      const bottomInsetFromLayout = Math.max(
-        0,
-        layoutViewportHeight - (viewport.height + viewport.offsetTop),
-      );
-      const bottomInsetFromInnerHeight = Math.max(
-        0,
-        window.innerHeight - (viewport.height + viewport.offsetTop),
-      );
-      const bottomInsetFromOuterHeight =
-        isIOSLikeBrowser && window.outerHeight > 0
-          ? Math.max(0, window.outerHeight - window.innerHeight)
-          : 0;
-      const bottomInsetFromScreenHeight =
-        isIOSLikeBrowser && window.screen?.height
-          ? Math.max(0, window.screen.height - (viewport.height + viewport.offsetTop))
-          : 0;
-      // iPhone browser toolbars can consume much more vertical space than safe-area
-      // reports, especially with bottom URL bar enabled. Keep a conservative floor.
-      const fallbackInset = isIOSLikeBrowser ? 104 : 0;
-      const rawBottomInset = keyboardLikelyOpen
-        ? 0
-        : Math.max(
-            fallbackInset,
-            bottomInsetFromLayout,
-            bottomInsetFromInnerHeight,
-            bottomInsetFromOuterHeight,
-            bottomInsetFromScreenHeight,
-          );
-      const bottomInset = Math.min(rawBottomInset, 200);
 
       root.style.setProperty("--browser-ui-top", `${Math.round(topInset)}px`);
       root.style.setProperty("--browser-ui-right", `${Math.round(rightInset)}px`);
