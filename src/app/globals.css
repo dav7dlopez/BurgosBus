@@ -58,6 +58,7 @@ body {
   min-height: 100%;
   margin: 0;
   padding: 0;
+  overscroll-behavior: none;
   background-color: var(--bg);
   background:
     radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 24%),
@@ -105,10 +106,10 @@ a {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
-  padding-top: calc(8px + var(--safe-top));
-  padding-right: calc(8px + var(--safe-right));
-  padding-bottom: max(0px, var(--safe-bottom));
-  padding-left: calc(8px + var(--safe-left));
+  padding-top: max(8px, var(--safe-top));
+  padding-right: max(8px, var(--safe-right));
+  padding-bottom: 0;
+  padding-left: max(8px, var(--safe-left));
 }
 
 .topbar {
@@ -1013,7 +1014,7 @@ a {
 .map-overlay--bottom {
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  bottom: calc(16px + var(--safe-bottom));
   display: grid;
   justify-items: start;
   align-content: end;
@@ -1023,7 +1024,7 @@ a {
 .map-overlay--context {
   top: auto;
   right: 10px;
-  bottom: 12px;
+  bottom: calc(12px + var(--safe-bottom));
   display: grid;
   justify-items: end;
   align-content: start;
@@ -1493,7 +1494,7 @@ a {
 
 .map-recenter-button {
   position: absolute;
-  bottom: 16px;
+  bottom: calc(16px + var(--safe-bottom));
   left: 58px;
   z-index: 950;
   width: 44px;
@@ -2723,10 +2724,10 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
 @media (max-width: 720px) {
   .app-shell {
     gap: 6px;
-    padding-top: calc(6px + var(--safe-top));
-    padding-right: calc(6px + var(--safe-right));
-    padding-bottom: max(2px, var(--safe-bottom));
-    padding-left: calc(6px + var(--safe-left));
+    padding-top: max(6px, var(--safe-top));
+    padding-right: max(6px, var(--safe-right));
+    padding-bottom: 0;
+    padding-left: max(6px, var(--safe-left));
     height: 100svh;
     height: 100dvh;
     min-height: 100lvh;
@@ -2922,7 +2923,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .map-overlay--context {
     top: auto;
     right: 6px;
-    bottom: 8px;
+    bottom: calc(8px + var(--safe-bottom));
     gap: 6px;
   }
 
@@ -3077,7 +3078,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   .map-overlay--bottom {
     left: 10px;
     right: 10px;
-    bottom: 10px;
+    bottom: calc(10px + var(--safe-bottom));
     gap: 8px;
   }
 
@@ -3156,7 +3157,7 @@ html[data-theme="dark"] .leaflet-popup.vehicle-follow-popup .vehicle-popup__butt
   }
 
   .map-recenter-button {
-    bottom: 10px;
+    bottom: calc(10px + var(--safe-bottom));
     left: 56px;
     width: 40px;
     height: 40px;
