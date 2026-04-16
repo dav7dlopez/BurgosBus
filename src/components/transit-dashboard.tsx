@@ -44,6 +44,8 @@ const NEARBY_STOP_RADIUS_METERS = 1000;
 const INITIAL_LINES_RETRY_ATTEMPTS = 3;
 const INITIAL_LINES_RETRY_DELAY_MS = 1400;
 const BONOBUR_CARD_STORAGE_KEY = "bus-burgos-bonobur-card";
+const BONOBUR_UPSTREAM_BALANCE_URL =
+  "https://bonobur.aytoburgos.es:8443/api/cargasaldo/comprobar";
 
 type BonoburBalanceSuccess = {
   ok: true;
@@ -223,6 +225,106 @@ function formatBonoburEuros(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function toNullableNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toNullableString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function normalizeBonoburUpstreamResponse(rawData: unknown): BonoburBalanceResponse {
+  const upstreamData =
+    rawData && typeof rawData === "object"
+      ? (rawData as {
+          respuesta?: unknown;
+          error?: unknown;
+          Message?: unknown;
+          saldo?: unknown;
+          vigencia?: unknown;
+          recargaPendiente?: unknown;
+          fechaRecargaPendiente?: unknown;
+        })
+      : {};
+
+  const functionalError =
+    toNullableString(upstreamData.error) ?? toNullableString(upstreamData.Message);
+
+  if (upstreamData.respuesta === -1 || functionalError) {
+    return {
+      ok: false,
+      status: "functional_error",
+      message:
+        functionalError ??
+        "No se ha podido validar la tarjeta BONOBUR en este momento.",
+    };
+  }
+
+  const saldoCents = toNullableNumber(upstreamData.saldo);
+  const recargaPendienteCents = toNullableNumber(upstreamData.recargaPendiente);
+
+  return {
+    ok: true,
+    status: "success",
+    observedAt: new Date().toISOString(),
+    balanceEuros: saldoCents !== null ? saldoCents / 100 : null,
+    validity: toNullableString(upstreamData.vigencia),
+    pendingTopUpEuros:
+      recargaPendienteCents !== null ? recargaPendienteCents / 100 : null,
+    pendingTopUpDate: toNullableString(upstreamData.fechaRecargaPendiente),
+  };
+}
+
+async function queryBonoburViaInternalApi(
+  numeroTarjeta: string,
+): Promise<BonoburBalanceResponse> {
+  const response = await fetch("/api/bonobur/balance", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ numeroTarjeta }),
+  });
+
+  const data = (await response.json()) as BonoburBalanceResponse;
+  if (!response.ok) {
+    return data.ok
+      ? {
+          ok: false,
+          status: "technical_error",
+          message: "No se pudo consultar el saldo BONOBUR.",
+        }
+      : data;
+  }
+
+  return data;
+}
+
+async function queryBonoburDirectFromClient(
+  numeroTarjeta: string,
+): Promise<BonoburBalanceResponse> {
+  const response = await fetch(BONOBUR_UPSTREAM_BALANCE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/plain, */*",
+    },
+    body: JSON.stringify({ numeroTarjeta }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: "technical_error",
+      message: "Servicio BONOBUR temporalmente no disponible.",
+    };
+  }
+
+  const rawData = (await response.json()) as unknown;
+  return normalizeBonoburUpstreamResponse(rawData);
 }
 
 type FollowedVehicleStopState =
@@ -1667,24 +1769,28 @@ export function TransitDashboard() {
 
   async function fetchBonoburBalance(cardNumber: string, shouldRemember: boolean) {
     const normalizedCard = cardNumber.trim().replace(/\s+/g, "");
+    if (!/^\d{10,13}$/.test(normalizedCard)) {
+      setBonoburFunctionalError("Introduce un número de tarjeta válido (solo dígitos).");
+      setBonoburError(null);
+      setBonoburBalance(null);
+      return;
+    }
+
     setBonoburLoading(true);
     setBonoburError(null);
     setBonoburFunctionalError(null);
 
     try {
-      const response = await fetch("/api/bonobur/balance", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ numeroTarjeta: normalizedCard }),
-      });
+      let data: BonoburBalanceResponse | null = null;
 
-      const data = (await response.json()) as BonoburBalanceResponse;
-      if (!response.ok) {
-        throw new Error(
-          data.ok ? "No se pudo consultar el saldo BONOBUR." : data.message,
-        );
+      try {
+        data = await queryBonoburViaInternalApi(normalizedCard);
+      } catch {
+        data = null;
+      }
+
+      if (!data || (!data.ok && data.status === "technical_error")) {
+        data = await queryBonoburDirectFromClient(normalizedCard);
       }
 
       if (!data.ok) {
