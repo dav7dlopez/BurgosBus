@@ -33,7 +33,7 @@ import type {
   VehiclePosition,
 } from "@/lib/types";
 
-const REALTIME_POLL_MS = 10000;
+const REALTIME_POLL_MS = 6000;
 const THEME_STORAGE_KEY = "bus-burgos-theme";
 const LAST_SELECTED_LINE_STORAGE_KEY = "bus-burgos-last-selected-line";
 const FAVORITE_LINES_STORAGE_KEY = "bus-burgos-favorite-lines";

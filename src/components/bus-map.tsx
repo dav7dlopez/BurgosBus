@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   IconBus,
@@ -67,6 +67,33 @@ const HEADING_MAX_STEP_DEGREES = 40;
 const HEADING_MAX_STEP_FAST_DEGREES = 62;
 const HEADING_FAST_DISTANCE = 0.00018;
 const UPSTREAM_HEADING_MAX_DELTA = 55;
+const POSITION_ANIMATION_MIN_DURATION_MS = 2200;
+const POSITION_ANIMATION_MAX_DURATION_MS = 5200;
+const POSITION_ANIMATION_FOLLOW_MAX_DURATION_MS = 5600;
+const POSITION_FREEZE_DISTANCE = 0.00001;
+const POSITION_ANIMATION_MAX_DISTANCE = 0.0026;
+const POSITION_ANIMATION_MAX_DISTANCE_FOR_DURATION = 0.00032;
+const POSITION_ANIMATION_MIN_ROUTE_PROGRESS_DELTA = 0.0009;
+const POSITION_ANIMATION_MAX_ROUTE_PROGRESS_DELTA = 0.22;
+
+type VehicleMotionTrack = {
+  routeId: string | null;
+  fromLat: number;
+  fromLng: number;
+  toLat: number;
+  toLng: number;
+  startAt: number;
+  endAt: number;
+  routePath?: Array<{ lat: number; lng: number }>;
+  routeMetrics?: RoutePathMetrics;
+  fromRouteProgress?: number;
+  toRouteProgress?: number;
+};
+
+type RoutePathMetrics = {
+  cumulative: number[];
+  totalLength: number;
+};
 
 function getRouteRenderKey(route: RouteShape) {
   const firstPoint = route.path[0];
@@ -184,6 +211,172 @@ function clampHeadingStep(fromDeg: number, toDeg: number, maxStepDeg: number) {
   const delta = getShortestAngleDelta(fromDeg, toDeg);
   const limitedDelta = Math.max(-maxStepDeg, Math.min(maxStepDeg, delta));
   return normalizeDegrees(fromDeg + limitedDelta);
+}
+
+function getMotionTrackPosition(track: VehicleMotionTrack, now: number) {
+  if (track.endAt <= track.startAt || now >= track.endAt) {
+    return { lat: track.toLat, lng: track.toLng, isActive: false };
+  }
+
+  if (now <= track.startAt) {
+    return { lat: track.fromLat, lng: track.fromLng, isActive: true };
+  }
+
+  const progress = (now - track.startAt) / (track.endAt - track.startAt);
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const easedProgress = 1 - Math.pow(1 - clampedProgress, 3);
+
+  if (
+    track.routePath &&
+    track.routeMetrics &&
+    track.fromRouteProgress !== undefined &&
+    track.toRouteProgress !== undefined
+  ) {
+    const interpolatedProgress =
+      track.fromRouteProgress +
+      (track.toRouteProgress - track.fromRouteProgress) * easedProgress;
+    const routePoint = getPointAtRouteProgress(
+      track.routePath,
+      track.routeMetrics,
+      interpolatedProgress,
+    );
+
+    return {
+      lat: routePoint.lat,
+      lng: routePoint.lng,
+      isActive: clampedProgress < 1,
+    };
+  }
+
+  return {
+    lat: track.fromLat + (track.toLat - track.fromLat) * easedProgress,
+    lng: track.fromLng + (track.toLng - track.fromLng) * easedProgress,
+    isActive: clampedProgress < 1,
+  };
+}
+
+function getAdaptiveAnimationDurationMs(
+  distance: number,
+  routeProgressDelta: number | null,
+  isFollowed: boolean,
+) {
+  const distanceRatio = Math.max(
+    0,
+    Math.min(1, distance / POSITION_ANIMATION_MAX_DISTANCE_FOR_DURATION),
+  );
+  const progressRatio =
+    routeProgressDelta === null
+      ? distanceRatio
+      : Math.max(
+          0,
+          Math.min(
+            1,
+            routeProgressDelta / POSITION_ANIMATION_MAX_ROUTE_PROGRESS_DELTA,
+          ),
+        );
+  const blendedRatio = Math.max(distanceRatio, progressRatio * 0.86);
+  const baseDuration =
+    POSITION_ANIMATION_MIN_DURATION_MS +
+    (POSITION_ANIMATION_MAX_DURATION_MS - POSITION_ANIMATION_MIN_DURATION_MS) *
+      blendedRatio;
+  const followedDuration = isFollowed
+    ? baseDuration + 380
+    : baseDuration;
+  const maxDuration = isFollowed
+    ? POSITION_ANIMATION_FOLLOW_MAX_DURATION_MS
+    : POSITION_ANIMATION_MAX_DURATION_MS;
+
+  return Math.round(
+    Math.max(POSITION_ANIMATION_MIN_DURATION_MS, Math.min(maxDuration, followedDuration)),
+  );
+}
+
+function buildRoutePathMetrics(path: Array<{ lat: number; lng: number }>) {
+  const cumulative = [0];
+  let totalLength = 0;
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const start = path[index];
+    const end = path[index + 1];
+    const segmentLength = Math.hypot(end.lat - start.lat, end.lng - start.lng);
+    totalLength += segmentLength;
+    cumulative.push(totalLength);
+  }
+
+  return {
+    cumulative,
+    totalLength,
+  };
+}
+
+function getRouteProgressAtPoint(
+  point: { lat: number; lng: number },
+  path: Array<{ lat: number; lng: number }>,
+  metrics: RoutePathMetrics,
+) {
+  if (path.length < 2 || metrics.totalLength <= 0) {
+    return null;
+  }
+
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let bestAbsolute = 0;
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const start = path[index];
+    const end = path[index + 1];
+    const projection = getProjectedPositionOnSegment(point, start, end);
+    const segmentLength = metrics.cumulative[index + 1] - metrics.cumulative[index];
+    const absoluteProgress = metrics.cumulative[index] + segmentLength * projection.t;
+
+    if (projection.distance < bestDistance) {
+      bestDistance = projection.distance;
+      bestAbsolute = absoluteProgress;
+    }
+  }
+
+  return bestAbsolute / metrics.totalLength;
+}
+
+function getPointAtRouteProgress(
+  path: Array<{ lat: number; lng: number }>,
+  metrics: RoutePathMetrics,
+  progress: number,
+) {
+  if (path.length < 2 || metrics.totalLength <= 0) {
+    return {
+      lat: path[0]?.lat ?? 0,
+      lng: path[0]?.lng ?? 0,
+    };
+  }
+
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const targetDistance = metrics.totalLength * clampedProgress;
+
+  let segmentIndex = 0;
+  while (
+    segmentIndex < metrics.cumulative.length - 2 &&
+    metrics.cumulative[segmentIndex + 1] < targetDistance
+  ) {
+    segmentIndex += 1;
+  }
+
+  const start = path[segmentIndex];
+  const end = path[segmentIndex + 1] ?? start;
+  const segmentStartDistance = metrics.cumulative[segmentIndex];
+  const segmentEndDistance = metrics.cumulative[segmentIndex + 1] ?? segmentStartDistance;
+  const segmentLength = segmentEndDistance - segmentStartDistance;
+
+  if (segmentLength <= 1e-9) {
+    return { lat: start.lat, lng: start.lng };
+  }
+
+  const segmentProgress = (targetDistance - segmentStartDistance) / segmentLength;
+  const clampedSegmentProgress = Math.max(0, Math.min(1, segmentProgress));
+
+  return {
+    lat: start.lat + (end.lat - start.lat) * clampedSegmentProgress,
+    lng: start.lng + (end.lng - start.lng) * clampedSegmentProgress,
+  };
 }
 
 const userLocationIcon = divIcon({
@@ -683,6 +876,31 @@ export function BusMap({
   const vehicleHeadingStateRef = useRef<
     Map<string, { heading: number; lat: number; lng: number }>
   >(new Map());
+  const vehicleMotionTracksRef = useRef<Map<string, VehicleMotionTrack>>(new Map());
+  const positionAnimationFrameRef = useRef<number | null>(null);
+  const [positionAnimationTick, setPositionAnimationTick] = useState(0);
+  const startPositionAnimationLoop = () => {
+    if (positionAnimationFrameRef.current !== null) {
+      return;
+    }
+
+    const loop = () => {
+      const now = performance.now();
+      const hasActiveTrack = [...vehicleMotionTracksRef.current.values()].some(
+        (track) => now < track.endAt,
+      );
+
+      setPositionAnimationTick(now);
+
+      if (hasActiveTrack) {
+        positionAnimationFrameRef.current = window.requestAnimationFrame(loop);
+      } else {
+        positionAnimationFrameRef.current = null;
+      }
+    };
+
+    positionAnimationFrameRef.current = window.requestAnimationFrame(loop);
+  };
   const visibleRoutes = useMemo(
     () =>
       liveTrackingEnabled && liveTrackingRouteId
@@ -705,6 +923,22 @@ export function BusMap({
     () => new Map(visibleRoutes.map((route) => [route.routeId, route])),
     [visibleRoutes],
   );
+  const routeMetricsById = useMemo(() => {
+    const map = new Map<string, RoutePathMetrics>();
+
+    visibleRoutes.forEach((route) => {
+      if (route.path.length < 2) {
+        return;
+      }
+
+      const metrics = buildRoutePathMetrics(route.path);
+      if (metrics.totalLength > 0) {
+        map.set(route.routeId, metrics);
+      }
+    });
+
+    return map;
+  }, [visibleRoutes]);
   const positionedStops = useMemo(
     () =>
       stops.map((stop) => {
@@ -738,7 +972,7 @@ export function BusMap({
       }),
     [routesById, visibleVehicles],
   );
-  const positionedVehicles = useMemo(() => {
+  const headingSmoothedVehicles = useMemo(() => {
     const nextHeadingState = new Map<
       string,
       { heading: number; lat: number; lng: number }
@@ -786,13 +1020,153 @@ export function BusMap({
 
     return smoothedVehicles;
   }, [routePositionedVehicles]);
-  const followedVehicle = useMemo(
+  useEffect(() => {
+    const now = performance.now();
+    const previousTracks = vehicleMotionTracksRef.current;
+    const nextTracks = new Map<string, VehicleMotionTrack>();
+
+    headingSmoothedVehicles.forEach((vehicle) => {
+      const previousTrack = previousTracks.get(vehicle.vehicleId);
+      const previousPosition = previousTrack
+        ? getMotionTrackPosition(previousTrack, now)
+        : null;
+      const fromLat = previousPosition?.lat ?? vehicle.markerLat;
+      const fromLng = previousPosition?.lng ?? vehicle.markerLng;
+      const distanceToNext = Math.hypot(
+        vehicle.markerLat - fromLat,
+        vehicle.markerLng - fromLng,
+      );
+      const isRouteSwitch =
+        previousTrack !== undefined && previousTrack.routeId !== vehicle.routeId;
+      const shouldFreeze = distanceToNext <= POSITION_FREEZE_DISTANCE;
+      const shouldSnap =
+        distanceToNext > POSITION_ANIMATION_MAX_DISTANCE || isRouteSwitch;
+      const shouldAnimate =
+        previousTrack !== undefined && !shouldFreeze && !shouldSnap;
+
+      const route = vehicle.routeId ? routesById.get(vehicle.routeId) : undefined;
+      const routeMetrics = vehicle.routeId
+        ? routeMetricsById.get(vehicle.routeId)
+        : undefined;
+      const supportsRouteGuidedInterpolation =
+        previousTrack !== undefined &&
+        previousTrack.routeId === vehicle.routeId &&
+        route !== undefined &&
+        routeMetrics !== undefined &&
+        route.path.length >= 2;
+      const fromProgress =
+        supportsRouteGuidedInterpolation && previousPosition
+          ? getRouteProgressAtPoint(previousPosition, route.path, routeMetrics)
+          : null;
+      const toProgress =
+        supportsRouteGuidedInterpolation
+          ? getRouteProgressAtPoint(
+              { lat: vehicle.markerLat, lng: vehicle.markerLng },
+              route.path,
+              routeMetrics,
+            )
+          : null;
+      const canAnimateOnRoute =
+        fromProgress !== null &&
+        toProgress !== null &&
+        Math.abs(toProgress - fromProgress) >=
+          POSITION_ANIMATION_MIN_ROUTE_PROGRESS_DELTA &&
+        Math.abs(toProgress - fromProgress) <=
+          POSITION_ANIMATION_MAX_ROUTE_PROGRESS_DELTA;
+      const routeProgressDelta =
+        canAnimateOnRoute && fromProgress !== null && toProgress !== null
+          ? Math.abs(toProgress - fromProgress)
+          : null;
+      const routePathForAnimation =
+        canAnimateOnRoute && route ? route.path : undefined;
+      const routeMetricsForAnimation =
+        canAnimateOnRoute && routeMetrics ? routeMetrics : undefined;
+      const animationDurationMs = getAdaptiveAnimationDurationMs(
+        distanceToNext,
+        routeProgressDelta,
+        vehicle.vehicleId === followedVehicleId,
+      );
+
+      if (!shouldAnimate) {
+        nextTracks.set(vehicle.vehicleId, {
+          routeId: vehicle.routeId,
+          fromLat: vehicle.markerLat,
+          fromLng: vehicle.markerLng,
+          toLat: vehicle.markerLat,
+          toLng: vehicle.markerLng,
+          startAt: now,
+          endAt: now,
+          routePath: route?.path,
+          routeMetrics,
+          fromRouteProgress: toProgress ?? undefined,
+          toRouteProgress: toProgress ?? undefined,
+        });
+        return;
+      }
+
+      nextTracks.set(vehicle.vehicleId, {
+        routeId: vehicle.routeId,
+        fromLat,
+        fromLng,
+        toLat: vehicle.markerLat,
+        toLng: vehicle.markerLng,
+        startAt: now,
+        endAt: now + animationDurationMs,
+        routePath: routePathForAnimation,
+        routeMetrics: routeMetricsForAnimation,
+        fromRouteProgress: canAnimateOnRoute ? fromProgress : undefined,
+        toRouteProgress: canAnimateOnRoute ? toProgress : undefined,
+      });
+    });
+
+    vehicleMotionTracksRef.current = nextTracks;
+    setPositionAnimationTick(now);
+    const hasPendingTrack = [...nextTracks.values()].some(
+      (track) => track.endAt > track.startAt,
+    );
+    if (hasPendingTrack) {
+      startPositionAnimationLoop();
+    } else if (positionAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(positionAnimationFrameRef.current);
+      positionAnimationFrameRef.current = null;
+    }
+  }, [followedVehicleId, headingSmoothedVehicles, routeMetricsById, routesById]);
+
+  useEffect(() => {
+    return () => {
+      if (positionAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionAnimationFrameRef.current);
+        positionAnimationFrameRef.current = null;
+      }
+    };
+  }, []);
+
+  const positionedVehicles = useMemo(() => {
+    const now = positionAnimationTick || performance.now();
+
+    return headingSmoothedVehicles.map((vehicle) => {
+      const track = vehicleMotionTracksRef.current.get(vehicle.vehicleId);
+      if (!track) {
+        return vehicle;
+      }
+
+      const currentPosition = getMotionTrackPosition(track, now);
+
+      return {
+        ...vehicle,
+        markerLat: currentPosition.lat,
+        markerLng: currentPosition.lng,
+      };
+    });
+  }, [headingSmoothedVehicles, positionAnimationTick]);
+  const followedVehicleForFocus = useMemo(
     () =>
       followedVehicleId
-        ? positionedVehicles.find((vehicle) => vehicle.vehicleId === followedVehicleId) ??
-          null
+        ? headingSmoothedVehicles.find(
+            (vehicle) => vehicle.vehicleId === followedVehicleId,
+          ) ?? null
         : null,
-    [followedVehicleId, positionedVehicles],
+    [followedVehicleId, headingSmoothedVehicles],
   );
 
   return (
@@ -817,7 +1191,7 @@ export function BusMap({
           signal={focusNearbyStopsSignal}
         />
         <FocusFollowedVehicle
-          vehicle={followedVehicle}
+          vehicle={followedVehicleForFocus}
           followedVehicleId={followedVehicleId}
         />
         <RecenterControl
