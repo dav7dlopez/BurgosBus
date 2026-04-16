@@ -1868,7 +1868,8 @@ export function TransitDashboard() {
   } satisfies CSSProperties;
 
   return (
-    <main className="app-shell">
+    <>
+      <main className="app-shell">
       <header className="topbar">
         <div className="topbar-head">
           <div className="brand-lockup">
@@ -3001,7 +3002,9 @@ export function TransitDashboard() {
           />
         </div>
       </section>
-    </main>
+      </main>
+      <div className="map-bottom-fill" aria-hidden="true" />
+    </>
   );
 }
 
